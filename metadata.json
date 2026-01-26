@@ -1,0 +1,5 @@
+{
+  "name": "VegOil",
+  "description": "A professional-grade dashboard tracking real-time Crude Palm Oil (FCPO) futures prices using Gemini AI and Google Search Grounding for accurate market data.",
+  "requestFramePermissions": []
+}
