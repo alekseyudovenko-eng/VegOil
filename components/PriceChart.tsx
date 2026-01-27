@@ -10,10 +10,10 @@ import {
   Area,
   Legend,
 } from 'recharts';
-import type { PriceData } from '../types'; // Изменили MergedPriceData на PriceData
+import type { PriceData } from '../types';
 
 interface PriceChartProps {
-  data: PriceData[]; // Используем PriceData
+  data: PriceData[]; // Принимаем базовый тип
   comparisonLabel?: string | null;
 }
 
