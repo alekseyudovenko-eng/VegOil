@@ -8,8 +8,8 @@ export interface PriceData {
 }
 
 export interface GroundingSource {
-  title: string;
-  uri: string;
+  title?: string;
+  uri?: string;
 }
 
 export interface MarketReport {
