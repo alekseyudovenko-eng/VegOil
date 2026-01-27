@@ -174,7 +174,7 @@ const App: React.FC = () => {
                   <p className="text-gray-500 font-medium animate-pulse">Updating prices...</p>
                 </div>
               )}
-              {!isLoading && !error && visibleData.length > 0 && (
+              {!isLoading && !error && visibleData && visibleData.length > 0 && (
                 <PriceChart data={visibleData} />
               )}
             </div>
