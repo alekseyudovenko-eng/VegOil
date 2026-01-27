@@ -9,124 +9,63 @@ import MarketReport from './components/MarketReport';
 import { TIMEFRAMES } from './constants';
 
 const App: React.FC = () => {
-  const [mainPriceData, setMainPriceData] = useState<PriceData[]>([]);
+  const [data, setData] = useState<PriceData[]>([]);
   const [sources, setSources] = useState<GroundingSource[]>([]);
-  const [reportSources, setReportSources] = useState<GroundingSource[]>([]);
-  const [marketReport, setMarketReport] = useState<MarketReportType | null>(null);
-  const [visibleRange, setVisibleRange] = useState({ startIndex: 0, endIndex: 0 });
-  const [activeTimeframe, setActiveTimeframe] = useState<Timeframe>('1M');
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isReportLoading, setIsReportLoading] = useState<boolean>(true);
-  const [isFallbackMode, setIsFallbackMode] = useState<boolean>(false);
-  const [currentPriceInfo, setCurrentPriceInfo] = useState({ price: 0, change: 0, changePercent: 0 });
+  const [report, setReport] = useState<MarketReportType | null>(null);
+  const [timeframe, setTimeframe] = useState<Timeframe>('1M');
+  const [loading, setLoading] = useState(true);
 
-  const fetchData = useCallback(async (timeframe: Timeframe) => {
-    setIsLoading(true);
+  const loadData = useCallback(async () => {
+    setLoading(true);
     try {
-      const response = await fetchRealtimePriceData(timeframe);
-      const data = Array.isArray(response?.data) ? response.data : [];
+      const res = await fetchRealtimePriceData(timeframe);
+      setData(Array.isArray(res?.data) ? res.data : []);
+      setSources(Array.isArray(res?.sources) ? res.sources : []);
       
-      setMainPriceData(data);
-      setSources(Array.isArray(response?.sources) ? response.sources : []);
-      setIsFallbackMode(!!response?.isFallback);
-      
-      if (data.length > 0) {
-        setVisibleRange({ startIndex: 0, endIndex: data.length });
-        const latest = data[data.length - 1];
-        const prev = data.length > 1 ? data[data.length - 2] : latest;
-        setCurrentPriceInfo({
-          price: latest?.close || 0,
-          change: (latest?.close || 0) - (prev?.close || 0),
-          changePercent: prev?.close ? (((latest.close - prev.close) / prev.close) * 100) : 0,
-        });
-      }
+      const repRes = await fetchWeeklyMarketReport();
+      setReport(repRes?.report || null);
     } catch (err) {
-      console.error(err);
-      setMainPriceData([]);
+      console.error("Error loading data:", err);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, []);
+  }, [timeframe]);
 
-  useEffect(() => {
-    fetchData(activeTimeframe);
-    fetchWeeklyMarketReport().then(res => {
-      setMarketReport(res?.report || null);
-      setReportSources(Array.isArray(res?.sources) ? res.sources : []);
-      setIsReportLoading(false);
-    });
-  }, [activeTimeframe, fetchData]);
-
-  // Безопасный срез данных
-  const getVisibleData = () => {
-    if (!Array.isArray(mainPriceData)) return [];
-    return mainPriceData.slice(visibleRange.startIndex, visibleRange.endIndex);
-  };
-
-  const currentVisible = getVisibleData();
+  useEffect(() => { loadData(); }, [loadData]);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-8 text-slate-900">
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         <DashboardHeader 
-          priceInfo={currentPriceInfo} 
-          isLoading={isLoading} 
-          onRefresh={() => fetchData(activeTimeframe)} 
+          priceInfo={{ 
+            price: data[data.length - 1]?.close || 0, 
+            change: 0, 
+            changePercent: 0 
+          }} 
+          isLoading={loading} 
+          onRefresh={loadData} 
         />
-        
-        {isFallbackMode && (
-          <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded text-amber-900 text-sm">
-            ⚠️ Режим симуляции: API временно недоступно.
-          </div>
-        )}
 
-        <main className="space-y-6">
-          <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-              <TimeframeSelector 
-                timeframes={TIMEFRAMES} 
-                activeTimeframe={activeTimeframe} 
-                onSelect={setActiveTimeframe} 
-              />
-              <ChartControls 
-                onZoomIn={() => {}} 
-                onZoomOut={() => {}}
-                onPanLeft={() => {}}
-                onPanRight={() => {}}
-                onReset={() => setVisibleRange({ startIndex: 0, endIndex: mainPriceData.length })}
-                canZoomIn={currentVisible.length > 5}
-                canZoomOut={true}
-                canPanLeft={visibleRange.startIndex > 0}
-                canPanRight={visibleRange.endIndex < mainPriceData.length}
-              />
-            </div>
-
-            <div className="h-[400px] w-full relative">
-              {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10 font-bold text-blue-600">
-                  ОБНОВЛЕНИЕ...
-                </div>
-              )}
-              {currentVisible.length > 0 ? (
-                <PriceChart data={currentVisible} />
-              ) : (
-                !isLoading && <div className="h-full flex items-center justify-center text-gray-400">График не загружен</div>
-              )}
-            </div>
-
-            {sources.length > 0 && (
-              <div className="flex flex-wrap gap-2 pt-4 border-t mt-4">
-                {sources.map((s, i) => (
-                  <a key={i} href={s?.uri || '#'} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 hover:underline">
-                    Источник: {s?.title || 'Data'}
-                  </a>
-                ))}
-              </div>
-            )}
+        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+          <div className="flex justify-between items-center mb-6">
+            <TimeframeSelector 
+              timeframes={TIMEFRAMES} 
+              activeTimeframe={timeframe} 
+              onSelect={setTimeframe} 
+            />
+            <ChartControls 
+              onZoomIn={() => {}} onZoomOut={() => {}} onPanLeft={() => {}} onPanRight={() => {}} onReset={() => {}}
+              canZoomIn={false} canZoomOut={false} canPanLeft={false} canPanRight={false}
+            />
           </div>
 
-          <MarketReport report={marketReport} isLoading={isReportLoading} />
-        </main>
+          <div className="h-[400px] relative">
+            {loading && <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10">Загрузка...</div>}
+            {data.length > 0 ? <PriceChart data={data} /> : <div className="h-full flex items-center justify-center text-gray-400">Нет данных</div>}
+          </div>
+        </div>
+
+        {report && <MarketReport report={report} isLoading={loading} />}
       </div>
     </div>
   );
