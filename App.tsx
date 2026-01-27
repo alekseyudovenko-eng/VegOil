@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import type { PriceData, Timeframe, GroundingSource, MarketReport as MarketReportType } from './types';
 import { fetchRealtimePriceData, fetchWeeklyMarketReport } from './services/priceService';
@@ -32,27 +31,35 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const { data, sources, isFallback } = await fetchRealtimePriceData(timeframe);
-      setPriceData(data);
-      setSources(sources);
-      if (isFallback) setIsFallbackMode(true);
+      const response = await fetchRealtimePriceData(timeframe);
       
-      if (data.length > 0) {
+      // БЕЗОПАСНОСТЬ: Проверяем, что response существует и содержит массивы
+      const data = response?.data || [];
+      const incomingSources = response?.sources || [];
+      
+      setPriceData(data);
+      setSources(incomingSources);
+      
+      if (response?.isFallback) setIsFallbackMode(true);
+      
+      if (data && data.length > 0) {
         setVisibleRange({ startIndex: 0, endIndex: data.length });
         const latestData = data[data.length - 1];
         const previousData = data.length > 1 ? data[data.length - 2] : latestData;
-        const change = latestData.close - previousData.close;
-        const changePercent = previousData.close !== 0 ? (change / previousData.close) * 100 : 0;
         
+        const close = latestData?.close || 0;
+        const prevClose = previousData?.close || 0;
+        const change = close - prevClose;
+
         setCurrentPriceInfo({
-          price: latestData.close,
+          price: close,
           change: change,
-          changePercent: changePercent,
+          changePercent: prevClose !== 0 ? (change / prevClose) * 100 : 0,
         });
       }
     } catch (err) {
-      setError('Market data unavailable.');
-      console.error(err);
+      setError('Market data currently unavailable.');
+      console.error("Fetch Data Error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -61,10 +68,14 @@ const App: React.FC = () => {
   const fetchReport = useCallback(async () => {
     setIsReportLoading(true);
     try {
-      const { report, sources, isFallback } = await fetchWeeklyMarketReport();
-      setMarketReport(report);
-      setReportSources(sources);
-      if (isFallback) setIsFallbackMode(true);
+      const response = await fetchWeeklyMarketReport();
+      
+      // БЕЗОПАСНОСТЬ: Обрабатываем возможный null или старый формат
+      if (response && typeof response === 'object') {
+        setMarketReport(response.report || null);
+        setReportSources(response.sources || []);
+        if (response.isFallback) setIsFallbackMode(true);
+      }
     } catch (err) {
       console.error("Report fetch failed", err);
     } finally {
@@ -81,6 +92,7 @@ const App: React.FC = () => {
   }, [fetchReport]);
 
   const handleTimeframeChange = (timeframe: Timeframe) => setActiveTimeframe(timeframe);
+  
   const handleRefresh = () => {
     setIsFallbackMode(false);
     fetchData(activeTimeframe);
@@ -106,15 +118,15 @@ const App: React.FC = () => {
   };
 
   const handlePanLeft = () => {
-    const panAmount = Math.max(1, Math.floor((visibleRange.endIndex - visibleRange.startIndex) * 0.2));
     const width = visibleRange.endIndex - visibleRange.startIndex;
+    const panAmount = Math.max(1, Math.floor(width * 0.2));
     const newStartIndex = Math.max(0, visibleRange.startIndex - panAmount);
     setVisibleRange({ startIndex: newStartIndex, endIndex: newStartIndex + width });
   };
 
   const handlePanRight = () => {
-    const panAmount = Math.max(1, Math.floor((visibleRange.endIndex - visibleRange.startIndex) * 0.2));
     const width = visibleRange.endIndex - visibleRange.startIndex;
+    const panAmount = Math.max(1, Math.floor(width * 0.2));
     const newEndIndex = Math.min(priceData.length, visibleRange.endIndex + panAmount);
     setVisibleRange({ startIndex: newEndIndex - width, endIndex: newEndIndex });
   };
@@ -137,8 +149,7 @@ const App: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
               <p className="text-sm text-yellow-800">
-                <strong>Regional Limitation:</strong> Google Search grounding is currently unavailable in your region. 
-                Using internal model knowledge and simulated data for continuity.
+                <strong>Notice:</strong> Using model knowledge as Search grounding is temporarily unavailable.
               </p>
             </div>
             <button onClick={() => setIsFallbackMode(false)} className="text-yellow-600 hover:text-yellow-800 font-bold text-xs uppercase">Dismiss</button>
@@ -146,7 +157,6 @@ const App: React.FC = () => {
         )}
 
         <main className="space-y-8">
-          {/* Chart Section */}
           <div className="bg-light-primary rounded-xl shadow-lg border border-gray-200 p-4 sm:p-6">
             <div className="flex flex-col lg:flex-row justify-between items-center gap-4 mb-6">
               <TimeframeSelector
@@ -160,7 +170,7 @@ const App: React.FC = () => {
                 onPanLeft={handlePanLeft}
                 onPanRight={handlePanRight}
                 onReset={() => setVisibleRange({ startIndex: 0, endIndex: priceData.length })}
-                canZoomIn={visibleRange.endIndex - visibleRange.startIndex > MIN_CANDLES_VISIBLE}
+                canZoomIn={(visibleRange.endIndex - visibleRange.startIndex) > MIN_CANDLES_VISIBLE}
                 canZoomOut={visibleRange.startIndex > 0 || visibleRange.endIndex < priceData.length}
                 canPanLeft={visibleRange.startIndex > 0}
                 canPanRight={visibleRange.endIndex < priceData.length}
@@ -174,30 +184,40 @@ const App: React.FC = () => {
                   <p className="text-gray-500 font-medium animate-pulse">Updating prices...</p>
                 </div>
               )}
-              {!isLoading && !error && visibleData && visibleData.length > 0 && (
+              {error && !isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center text-red-500 font-medium">
+                  {error}
+                </div>
+              )}
+              {/* ПРОВЕРКА: visibleData существует и имеет длину */}
+              {!isLoading && !error && visibleData && visibleData.length > 0 ? (
                 <PriceChart data={visibleData} />
+              ) : (
+                !isLoading && !error && (
+                  <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                    No price data available for this period.
+                  </div>
+                )
               )}
             </div>
 
             <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-50">
-              {sources.length > 0 ? sources.map((s, i) => (
-                <a key={i} href={s.uri} target="_blank" className="text-[10px] text-brand-blue hover:underline">Price Source: {s.title}</a>
+              {sources && sources.length > 0 ? sources.map((s, i) => (
+                <a key={i} href={s.uri} target="_blank" rel="noreferrer" className="text-[10px] text-brand-blue hover:underline">Price Source: {s.title}</a>
               )) : (
-                <span className="text-[10px] text-gray-400 italic">No external sources linked in this session.</span>
+                <span className="text-[10px] text-gray-400 italic">Data sources will appear here.</span>
               )}
             </div>
           </div>
 
-          {/* Report Section */}
           <MarketReport report={marketReport} isLoading={isReportLoading} />
 
-          {/* Report Sources */}
-          {reportSources.length > 0 && (
+          {reportSources && reportSources.length > 0 && (
             <div className="bg-white/50 p-4 rounded-lg border border-gray-100">
               <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Report Citations</h4>
               <div className="flex flex-wrap gap-3">
                 {reportSources.slice(0, 6).map((s, i) => (
-                  <a key={i} href={s.uri} target="_blank" className="text-xs text-gray-500 hover:text-brand-blue transition-colors flex items-center gap-1">
+                  <a key={i} href={s.uri} target="_blank" rel="noreferrer" className="text-xs text-gray-500 hover:text-brand-blue transition-colors flex items-center gap-1">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                     {s.title}
                   </a>
