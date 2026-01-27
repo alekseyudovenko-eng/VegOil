@@ -2,9 +2,7 @@ import type { PriceData, MarketReport, Timeframe } from '../types';
 
 const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || "";
 const MODEL = "gemini-1.5-flash"; 
-
-// Убрали лишние параметры &v=2, оставили только ключ
-const BASE_URL = `https://generativelanguage.googleapis.com/v1/models/${MODEL}:generateContent?key=${API_KEY}`;
+const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
 
 const generateMockData = (timeframe: Timeframe): PriceData[] => {
   const data: PriceData[] = [];
@@ -33,29 +31,24 @@ export const fetchRealtimePriceData = async (timeframe: Timeframe) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ 
-          parts: [{ text: `Provide real-time FCPO (Palm Oil) prices for ${timeframe} as JSON. format: {"prices": [{"date": "ISO8601", "open": number, "high": number, "low": number, "close": number}]}` }] 
-        }]
-        // МЫ УДАЛИЛИ "tools", чтобы не было ошибки 400
+        contents: [{ parts: [{ text: `Provide FCPO prices for ${timeframe} in JSON: {"prices": [...]}` }] }]
       })
     });
 
     const result = await response.json();
-    
-    // Если API ругается (как сейчас), идем в симуляцию
-    if (result.error) {
-      console.warn("Google API Error, switching to Mock Data:", result.error.message);
+    if (result.error || !result.candidates) {
       return { data: generateMockData(timeframe), sources: [], isFallback: true };
     }
 
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const text = result.candidates[0].content.parts[0].text || "";
     const cleanJson = text.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(cleanJson);
+    const prices = parsed.prices || (Array.isArray(parsed) ? parsed : []);
 
     return { 
-      data: parsed.prices || (Array.isArray(parsed) ? parsed : generateMockData(timeframe)), 
-      sources: [], 
-      isFallback: false 
+      data: prices.length > 0 ? prices : generateMockData(timeframe), 
+      sources: result.candidates[0].groundingMetadata?.groundingChunks || [],
+      isFallback: prices.length === 0 
     };
   } catch (error) {
     return { data: generateMockData(timeframe), sources: [], isFallback: true };
@@ -69,13 +62,17 @@ export const fetchWeeklyMarketReport = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: "Weekly market report for Palm Oil Futures in JSON: {'summary': '...', 'outlook': '...'}" }] }]
+        contents: [{ parts: [{ text: "Weekly market report JSON" }] }]
       })
     });
     const result = await response.json();
     const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
     const cleanJson = text.replace(/```json|```/g, "").trim();
-    return { report: JSON.parse(cleanJson), sources: [], isFallback: false };
+    return { 
+      report: JSON.parse(cleanJson), 
+      sources: result.candidates?.[0]?.groundingMetadata?.groundingChunks || [], 
+      isFallback: false 
+    };
   } catch (e) {
     return { report: null, sources: [], isFallback: true };
   }
