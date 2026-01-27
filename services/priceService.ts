@@ -3,7 +3,8 @@ import type { PriceData, MarketReport, Timeframe } from '../types';
 const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || "";
 const MODEL = "gemini-1.5-flash"; 
 // ИСПОЛЬЗУЕМ v1 — она стабильнее для этого метода
-const BASE_URL = `https://generativelanguage.googleapis.com/v1/models/${MODEL}:generateContent?key=${API_KEY}`;
+// Добавь &v=2 в конец URL
+const BASE_URL = `https://generativelanguage.googleapis.com/v1/models/${MODEL}:generateContent?key=${API_KEY}&v=2`;
 
 export const fetchRealtimePriceData = async (timeframe: Timeframe): Promise<{ data: PriceData[], sources: any[], isFallback: boolean }> => {
   if (!API_KEY) return { data: [], sources: [], isFallback: true };
