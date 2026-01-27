@@ -1,70 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import type { PriceData, Timeframe, GroundingSource, MarketReport as MarketReportType } from './types';
-import { fetchRealtimePriceData, fetchWeeklyMarketReport } from './services/priceService';
-import DashboardHeader from './components/DashboardHeader';
-import TimeframeSelector from './components/TimeframeSelector';
-import PriceChart from './components/PriceChart';
-import ChartControls from './components/ChartControls';
-import MarketReport from './components/MarketReport';
-import { TIMEFRAMES } from './constants';
-
-const MIN_CANDLES_VISIBLE = 5;
+// ... (оставляем импорты без изменений)
 
 const App: React.FC = () => {
-  const [priceData, setPriceData] = useState<PriceData[]>([]);
-  const [sources, setSources] = useState<GroundingSource[]>([]);
-  const [reportSources, setReportSources] = useState<GroundingSource[]>([]);
-  const [marketReport, setMarketReport] = useState<MarketReportType | null>(null);
-  const [visibleRange, setVisibleRange] = useState({ startIndex: 0, endIndex: 0 });
-  const [activeTimeframe, setActiveTimeframe] = useState<Timeframe>('1M');
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isReportLoading, setIsReportLoading] = useState<boolean>(true);
-  const [isFallbackMode, setIsFallbackMode] = useState<boolean>(false);
-  const [currentPriceInfo, setCurrentPriceInfo] = useState({ price: 0, change: 0, changePercent: 0 });
+  // ... (оставляем стейты без изменений)
 
-  const fetchData = useCallback(async (timeframe: Timeframe) => {
-    setIsLoading(true);
-    try {
-      const response = await fetchRealtimePriceData(timeframe);
-      const data = Array.isArray(response?.data) ? response.data : [];
-      setPriceData(data);
-      setSources(Array.isArray(response?.sources) ? response.sources : []);
-      setIsFallbackMode(!!response?.isFallback);
-      
-      if (data.length > 0) {
-        setVisibleRange({ startIndex: 0, endIndex: data.length });
-        const latest = data[data.length - 1];
-        const prev = data.length > 1 ? data[data.length - 2] : latest;
-        setCurrentPriceInfo({
-          price: latest?.close || 0,
-          change: (latest?.close || 0) - (prev?.close || 0),
-          changePercent: prev?.close ? (((latest.close - prev.close) / prev.close) * 100) : 0,
-        });
-      }
-    } catch (err) {
-      setPriceData([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const fetchReport = useCallback(async () => {
-    setIsReportLoading(true);
-    try {
-      const response = await fetchWeeklyMarketReport();
-      setMarketReport(response?.report || null);
-      setReportSources(Array.isArray(response?.sources) ? response.sources : []);
-    } catch (e) {
-      setMarketReport(null);
-    } finally {
-      setIsReportLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchData(activeTimeframe); }, [activeTimeframe, fetchData]);
-  useEffect(() => { fetchReport(); }, [fetchReport]);
-
-  const visibleData = priceData.slice(visibleRange.startIndex, visibleRange.endIndex);
+  // ИСПРАВЛЕНИЕ: Добавляем безопасную проверку для visibleData
+  const visibleData = Array.isArray(priceData) ? priceData.slice(visibleRange.startIndex, visibleRange.endIndex) : [];
 
   return (
     <div className="min-h-screen bg-light-secondary p-4 sm:p-8">
@@ -92,27 +32,34 @@ const App: React.FC = () => {
               )}
             </div>
 
-            {/* БРОНЯ: Проверка перед .map() */}
+            {/* Защищенный вывод источников цен */}
             {sources && sources.length > 0 && (
               <div className="flex flex-wrap gap-2 pt-4 border-t mt-4">
                 {sources.map((s, i) => (
-                  <a key={i} href={s.uri} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 underline">
-                    Источник: {s.title}
+                  <a key={`src-${i}`} href={s?.uri || '#'} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 underline">
+                    Источник: {s?.title || 'Без названия'}
                   </a>
                 ))}
               </div>
             )}
           </div>
 
-          <MarketReport report={marketReport} isLoading={isReportLoading} />
+          {/* КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: 
+              Рендерим MarketReport ТОЛЬКО если есть данные, либо если идет загрузка. 
+              Если report === null и загрузки нет — не рендерим вообще. */}
+          {(marketReport || isReportLoading) && (
+            <MarketReport report={marketReport} isLoading={isReportLoading} />
+          )}
           
-          {/* БРОНЯ: Проверка перед .map() для отчета */}
+          {/* Защищенный вывод источников отчета */}
           {reportSources && reportSources.length > 0 && (
             <div className="p-4 bg-white/50 rounded border text-xs text-gray-500">
               <h4 className="font-bold mb-2 uppercase">Источники отчета:</h4>
               <div className="flex flex-wrap gap-4">
                 {reportSources.map((s, i) => (
-                  <a key={i} href={s.uri} target="_blank" rel="noreferrer" className="hover:text-blue-500">{s.title}</a>
+                  <a key={`rep-${i}`} href={s?.uri || '#'} target="_blank" rel="noreferrer" className="hover:text-blue-500">
+                    {s?.title || 'Источник'}
+                  </a>
                 ))}
               </div>
             </div>
