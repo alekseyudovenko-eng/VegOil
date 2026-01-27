@@ -21,25 +21,20 @@ const App: React.FC = () => {
   const [isReportLoading, setIsReportLoading] = useState<boolean>(true);
   const [isFallbackMode, setIsFallbackMode] = useState<boolean>(false);
   const [currentPriceInfo, setCurrentPriceInfo] = useState({ price: 0, change: 0, changePercent: 0 });
-  const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async (timeframe: Timeframe) => {
     setIsLoading(true);
-    setError(null);
     try {
       const response = await fetchRealtimePriceData(timeframe);
-      const data = response?.data || [];
-      const incomingSources = response?.sources || [];
-      
+      const data = Array.isArray(response?.data) ? response.data : [];
       setPriceData(data);
-      setSources(incomingSources);
-      if (response?.isFallback) setIsFallbackMode(true);
+      setSources(Array.isArray(response?.sources) ? response.sources : []);
+      setIsFallbackMode(!!response?.isFallback);
       
-      if (Array.isArray(data) && data.length > 0) {
+      if (data.length > 0) {
         setVisibleRange({ startIndex: 0, endIndex: data.length });
         const latest = data[data.length - 1];
         const prev = data.length > 1 ? data[data.length - 2] : latest;
-        
         setCurrentPriceInfo({
           price: latest?.close || 0,
           change: (latest?.close || 0) - (prev?.close || 0),
@@ -47,7 +42,7 @@ const App: React.FC = () => {
         });
       }
     } catch (err) {
-      setError('Market data unavailable.');
+      setPriceData([]);
     } finally {
       setIsLoading(false);
     }
@@ -58,9 +53,9 @@ const App: React.FC = () => {
     try {
       const response = await fetchWeeklyMarketReport();
       setMarketReport(response?.report || null);
-      setReportSources(response?.sources || []);
-    } catch (err) {
-      console.error(err);
+      setReportSources(Array.isArray(response?.sources) ? response.sources : []);
+    } catch (e) {
+      setMarketReport(null);
     } finally {
       setIsReportLoading(false);
     }
@@ -69,43 +64,59 @@ const App: React.FC = () => {
   useEffect(() => { fetchData(activeTimeframe); }, [activeTimeframe, fetchData]);
   useEffect(() => { fetchReport(); }, [fetchReport]);
 
-  const visibleData = Array.isArray(priceData) ? priceData.slice(visibleRange.startIndex, visibleRange.endIndex) : [];
+  const visibleData = priceData.slice(visibleRange.startIndex, visibleRange.endIndex);
 
   return (
     <div className="min-h-screen bg-light-secondary p-4 sm:p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         <DashboardHeader priceInfo={currentPriceInfo} isLoading={isLoading} onRefresh={() => fetchData(activeTimeframe)} />
         
+        {isFallbackMode && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded text-yellow-800 text-sm">
+            ⚠️ Режим симуляции: Данные API недоступны, показан пример.
+          </div>
+        )}
+
         <main className="space-y-8">
           <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
             <div className="flex justify-between mb-6">
               <TimeframeSelector timeframes={TIMEFRAMES} activeTimeframe={activeTimeframe} onSelect={setActiveTimeframe} />
-              <ChartControls 
-                onZoomIn={() => {}} // Добавь свою логику зума
-                onZoomOut={() => {}}
-                onPanLeft={() => {}}
-                onPanRight={() => {}}
-                onReset={() => setVisibleRange({ startIndex: 0, endIndex: priceData.length })}
-                canZoomIn={visibleData.length > MIN_CANDLES_VISIBLE}
-                canZoomOut={true}
-                canPanLeft={visibleRange.startIndex > 0}
-                canPanRight={visibleRange.endIndex < priceData.length}
-              />
             </div>
 
-            <div className="h-[400px] relative">
-              {isLoading && <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10">Loading...</div>}
-              
-              {/* ЗАЩИТА ОТ БЕЛОГО ЭКРАНА */}
-              {!isLoading && visibleData && visibleData.length > 0 ? (
+            <div className="h-[400px] w-full relative">
+              {isLoading && <div className="absolute inset-0 flex items-center justify-center bg-white/60 z-10 font-bold">ОБНОВЛЕНИЕ...</div>}
+              {visibleData.length > 0 ? (
                 <PriceChart data={visibleData} />
               ) : (
-                !isLoading && <div className="h-full flex items-center justify-center text-gray-400">No data available</div>
+                !isLoading && <div className="h-full flex items-center justify-center text-gray-400">График временно недоступен</div>
               )}
             </div>
+
+            {/* БРОНЯ: Проверка перед .map() */}
+            {sources && sources.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-4 border-t mt-4">
+                {sources.map((s, i) => (
+                  <a key={i} href={s.uri} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 underline">
+                    Источник: {s.title}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           <MarketReport report={marketReport} isLoading={isReportLoading} />
+          
+          {/* БРОНЯ: Проверка перед .map() для отчета */}
+          {reportSources && reportSources.length > 0 && (
+            <div className="p-4 bg-white/50 rounded border text-xs text-gray-500">
+              <h4 className="font-bold mb-2 uppercase">Источники отчета:</h4>
+              <div className="flex flex-wrap gap-4">
+                {reportSources.map((s, i) => (
+                  <a key={i} href={s.uri} target="_blank" rel="noreferrer" className="hover:text-blue-500">{s.title}</a>
+                ))}
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>
