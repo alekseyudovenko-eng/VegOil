@@ -1,17 +1,15 @@
 import type { PriceData, MarketReport, Timeframe } from '../types';
 
-// Используем твой ключ
 const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || "";
 const MODEL = "gemini-1.5-flash"; 
 
-// ВАЖНО: Исправленный URL (версия v1 и корректный путь к модели)
+// ИСПРАВЛЕНО: Добавлено /models/ в путь
 const BASE_URL = `https://generativelanguage.googleapis.com/v1/models/${MODEL}:generateContent?key=${API_KEY}`;
 
-export const fetchRealtimePriceData = async (timeframe: Timeframe): Promise<{ data: PriceData[], sources: any[] }> => {
-  if (!API_KEY) return { data: [], sources: [] };
+export const fetchRealtimePriceData = async (timeframe: Timeframe): Promise<{ data: PriceData[], sources: any[], isFallback: boolean }> => {
+  if (!API_KEY) return { data: [], sources: [], isFallback: true };
 
-  const prompt = `SEARCH ONLINE for real-time FCPO (Crude Palm Oil) prices. 
-  Return ONLY JSON: {"prices": [{"date": "YYYY-MM-DD", "open": number, "high": number, "low": number, "close": number}]}`;
+  const prompt = `SEARCH ONLINE for real-time FCPO (Crude Palm Oil) prices. Return ONLY JSON: {"prices": [{"date": "2026-01-27T10:00:00Z", "open": 4000, "high": 4050, "low": 3950, "close": 4010}]}`;
 
   try {
     const response = await fetch(BASE_URL, {
@@ -24,33 +22,34 @@ export const fetchRealtimePriceData = async (timeframe: Timeframe): Promise<{ da
     });
 
     const result = await response.json();
-
-    // Если Google выдает ошибку, возвращаем пустой массив, чтобы сайт не «падал»
-    if (result.error) {
-      console.error("Google API Error:", result.error.message);
-      return { data: [], sources: [] };
-    }
+    if (result.error) throw new Error(result.error.message);
 
     const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '{"prices":[]}';
     const cleanJson = text.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(cleanJson);
 
+    // Извлекаем источники из метаданных Google
+    const rawSources = result.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const sources = rawSources.map((s: any) => ({
+      title: s.web?.title || "Market Source",
+      uri: s.web?.uri || "#"
+    }));
+
     return { 
       data: parsed.prices || [], 
-      sources: result.candidates?.[0]?.groundingMetadata?.searchEntryPoint?.html || [] 
+      sources: sources,
+      isFallback: false 
     };
   } catch (error) {
-    console.error("Fetch error:", error);
-    return { data: [], sources: [] };
+    console.error("Price fetch error:", error);
+    return { data: [], sources: [], isFallback: true };
   }
 };
 
-export const fetchWeeklyMarketReport = async (): Promise<MarketReport | null> => {
-  if (!API_KEY) return null;
+export const fetchWeeklyMarketReport = async (): Promise<{ report: MarketReport | null, sources: any[], isFallback: boolean }> => {
+  if (!API_KEY) return { report: null, sources: [], isFallback: true };
 
-  const countries = "Azerbaijan, Armenia, Belarus, Bulgaria, Czechia, Croatia, Estonia, France, Germany, UK, Georgia, Hungary, Italy, Kazakhstan, Kyrgyzstan, Latvia, Lithuania, Moldova, Netherlands, Poland, Romania, Russia, Slovakia, Tajikistan, Turkmenistan, Ukraine, Uzbekistan";
-  
-  const prompt = `SEARCH ONLINE for vegetable oil market report for ${countries}. Return JSON.`;
+  const prompt = `SEARCH ONLINE for vegetable oil market report. Return ONLY JSON with keys: summary, topNews, policyUpdates, tradeTable, priceTrends, regionalHighlights.`;
 
   try {
     const response = await fetch(BASE_URL, {
@@ -65,8 +64,16 @@ export const fetchWeeklyMarketReport = async (): Promise<MarketReport | null> =>
     const result = await response.json();
     const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
     const cleanJson = text.replace(/```json|```/g, "").trim();
-    return JSON.parse(cleanJson);
+    const report = JSON.parse(cleanJson);
+
+    const rawSources = result.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const sources = rawSources.map((s: any) => ({
+      title: s.web?.title || "Market Report Source",
+      uri: s.web?.uri || "#"
+    }));
+
+    return { report, sources, isFallback: false };
   } catch (e) {
-    return null;
+    return { report: null, sources: [], isFallback: true };
   }
 };
