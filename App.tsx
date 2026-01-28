@@ -32,7 +32,7 @@ const App: React.FC = () => {
         } catch (reportErr) {
           console.error("Error loading report:", reportErr);
         }
-      }, 3000);
+      }, 6000);
 
     } catch (err) {
       console.error("Error loading price data:", err);
