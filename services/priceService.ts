@@ -1,7 +1,8 @@
 import { PriceData, MarketReport, Timeframe } from '../types';
 
-const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
-const BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
+// Не забудь поменять имя переменной в Vercel на VITE_GROQ_API_KEY
+const API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+const BASE_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 const parseSafeJSON = (text: string) => {
   try {
@@ -13,7 +14,6 @@ const parseSafeJSON = (text: string) => {
   }
 };
 
-// 1. Функция для графиков
 export const fetchRealtimePriceData = async (timeframe: Timeframe): Promise<{ data: PriceData[], sources: any[] }> => {
   try {
     if (!API_KEY) return { data: [], sources: [] };
@@ -25,13 +25,15 @@ export const fetchRealtimePriceData = async (timeframe: Timeframe): Promise<{ da
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-3.1-8b-instruct:free', 
+        // Мощная и быстрая модель Llama 3.3 от Groq
+        model: 'llama-3.3-70b-versatile',
         messages: [{
           role: 'user',
           content: `Return a JSON array of historical price data for FCPO (Palm Oil) for ${timeframe}. 
           Format: [{"date": "2024-01-01", "open": 3800, "high": 3850, "low": 3780, "close": 3820}]. 
-          Return ONLY the array.`
-        }]
+          Return ONLY the array. Min 20 points.`
+        }],
+        temperature: 0.1 // Делаем ответ более стабильным
       })
     });
 
@@ -41,12 +43,11 @@ export const fetchRealtimePriceData = async (timeframe: Timeframe): Promise<{ da
 
     return { data: Array.isArray(parsed) ? parsed : [], sources: [] };
   } catch (error) {
-    console.error("Fetch price failed:", error);
+    console.error("Groq Price Fetch failed:", error);
     return { data: [], sources: [] };
   }
 };
 
-// 2. Функция для отчета (Её не хватало!)
 export const fetchWeeklyMarketReport = async (): Promise<{ report: MarketReport | null, sources: any[] }> => {
   try {
     if (!API_KEY) return { report: null, sources: [] };
@@ -58,7 +59,7 @@ export const fetchWeeklyMarketReport = async (): Promise<{ report: MarketReport 
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-exp:free',
+        model: 'llama-3.3-70b-versatile',
         messages: [{
           role: 'user',
           content: `Generate a market report for Vegetable Oils in JSON: {
@@ -78,7 +79,7 @@ export const fetchWeeklyMarketReport = async (): Promise<{ report: MarketReport 
 
     return { report: parsed as MarketReport, sources: [] };
   } catch (error) {
-    console.error("Fetch report failed:", error);
+    console.error("Groq Report fetch failed:", error);
     return { report: null, sources: [] };
   }
 };
