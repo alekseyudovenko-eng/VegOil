@@ -6,7 +6,7 @@ const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
 /** * Используем стабильный эндпоинт v1. 
  * Если v1 не сработает в твоем регионе, можно будет вернуть v1beta.
  */
-const BASE_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent';
+const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 /**
  * Вспомогательная функция для очистки JSON-ответа от Gemini
