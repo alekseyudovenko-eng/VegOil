@@ -31,7 +31,15 @@ const App: React.FC = () => {
     }
   }, [timeframe]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+ useEffect(() => {
+  const loadData = async () => {
+    await fetchPrices(); // Сначала цены
+    setTimeout(async () => {
+      await fetchReport(); // Через 2 секунды новости
+    }, 2000);
+  };
+  loadData();
+}, []);
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-8">
