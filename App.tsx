@@ -15,31 +15,37 @@ const App: React.FC = () => {
   const [timeframe, setTimeframe] = useState<Timeframe>('1M');
   const [loading, setLoading] = useState(true);
 
+  // Основная логика загрузки
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      // 1. Сначала загружаем только цены для графика
       const res = await fetchRealtimePriceData(timeframe);
       setData(Array.isArray(res?.data) ? res.data : []);
       setSources(Array.isArray(res?.sources) ? res.sources : []);
       
-      const repRes = await fetchWeeklyMarketReport();
-      setReport(repRes?.report || null);
+      // 2. Делаем паузу 3 секунды, чтобы бесплатный лимит OpenRouter (429) "остыл"
+      setTimeout(async () => {
+        try {
+          const repRes = await fetchWeeklyMarketReport();
+          setReport(repRes?.report || null);
+        } catch (reportErr) {
+          console.error("Error loading report:", reportErr);
+        }
+      }, 3000);
+
     } catch (err) {
-      console.error("Error loading data:", err);
+      console.error("Error loading price data:", err);
     } finally {
+      // Ставим false, когда первая часть (цены) загружена
       setLoading(false);
     }
   }, [timeframe]);
 
- useEffect(() => {
-  const loadData = async () => {
-    await fetchPrices(); // Сначала цены
-    setTimeout(async () => {
-      await fetchReport(); // Через 2 секунды новости
-    }, 2000);
-  };
-  loadData();
-}, []);
+  // Запуск при загрузке или смене таймфрейма
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-8">
@@ -68,8 +74,18 @@ const App: React.FC = () => {
           </div>
 
           <div className="h-[400px] relative">
-            {loading && <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10">Загрузка...</div>}
-            {data.length > 0 ? <PriceChart data={data} /> : <div className="h-full flex items-center justify-center text-gray-400">Нет данных</div>}
+            {loading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10">
+                <div className="animate-pulse text-blue-600 font-medium">Загрузка данных...</div>
+              </div>
+            )}
+            {data.length > 0 ? (
+              <PriceChart data={data} />
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-400 border-2 border-dashed border-gray-100 rounded-lg">
+                {!loading && "Нет данных для отображения"}
+              </div>
+            )}
           </div>
         </div>
 
