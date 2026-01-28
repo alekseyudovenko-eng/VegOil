@@ -1,16 +1,34 @@
 import { PriceData, MarketReport, Timeframe } from '../types';
 
-// Используем переменную окружения для Vite
+// Используем переменную окружения Vite
 const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
-const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+
+/** * Используем стабильный эндпоинт v1. 
+ * Если v1 не сработает в твоем регионе, можно будет вернуть v1beta.
+ */
+const BASE_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent';
 
 /**
- * Получение исторических данных о ценах через Gemini
+ * Вспомогательная функция для очистки JSON-ответа от Gemini
+ */
+const parseGeminiResponse = (jsonString: string) => {
+  try {
+    // Удаляем Markdown разметку (```json ... ```), которую любит добавлять Gemini
+    const cleanJson = jsonString.replace(/```json|```/g, '').trim();
+    return JSON.parse(cleanJson);
+  } catch (e) {
+    console.error("Ошибка парсинга JSON от Gemini:", e);
+    return null;
+  }
+};
+
+/**
+ * Получение данных о ценах
  */
 export const fetchRealtimePriceData = async (timeframe: Timeframe): Promise<{ data: PriceData[], sources: any[] }> => {
   try {
     if (!API_KEY) {
-      console.error("API Key is missing in Vercel Environment Variables");
+      console.error("VITE_GOOGLE_API_KEY не настроен в Vercel!");
       return { data: [], sources: [] };
     }
 
@@ -20,33 +38,36 @@ export const fetchRealtimePriceData = async (timeframe: Timeframe): Promise<{ da
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Return a JSON array of historical price data for FCPO (Palm Oil) for ${timeframe} timeframe. 
-            Use this exact format: [{"date": "2024-01-01", "open": 3800, "high": 3850, "low": 3780, "close": 3820}]. 
-            Provide at least 15-20 data points. Do not include any text before or after the JSON array.`
+            text: `Return a JSON array of historical price data for FCPO (Palm Oil) for ${timeframe}. 
+            Required format: [{"date": "YYYY-MM-DD", "open": number, "high": number, "low": number, "close": number}]. 
+            Provide at least 20 data points. Do not write any explanations, only the JSON array.`
           }]
         }]
       })
     });
 
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Google API Error:", errorData);
+      return { data: [], sources: [] };
+    }
+
     const result = await response.json();
     const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-
-    // Очистка ответа от Markdown (Gemini часто добавляет ```json ... ```)
-    const cleanJson = textResponse.replace(/```json|```/g, '').trim();
-    const parsedData = JSON.parse(cleanJson);
+    const data = parseGeminiResponse(textResponse);
 
     return { 
-      data: Array.isArray(parsedData) ? parsedData : [], 
+      data: Array.isArray(data) ? data : [], 
       sources: result.groundingMetadata?.searchEntryPoint ? [result.groundingMetadata.searchEntryPoint] : [] 
     };
   } catch (error) {
-    console.error("Error fetching price data:", error);
+    console.error("fetchRealtimePriceData failed:", error);
     return { data: [], sources: [] };
   }
 };
 
 /**
- * Получение еженедельного рыночного отчета
+ * Получение рыночного отчета
  */
 export const fetchWeeklyMarketReport = async (): Promise<{ report: MarketReport | null, sources: any[] }> => {
   try {
@@ -58,31 +79,31 @@ export const fetchWeeklyMarketReport = async (): Promise<{ report: MarketReport 
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Act as a market analyst. Generate a weekly report for Vegetable Oils (Palm, Soy, Sunflower) in JSON format.
-            The structure must be: {
-              "summary": "general overview",
-              "topNews": [{"commodity": "Palm Oil", "headline": "string", "content": "string"}],
-              "priceTrends": [{"commodity": "Soy Oil", "trend": "up", "details": "string"}],
-              "tradeTable": [{"country": "Malaysia", "commodity": "CPO", "volume": "500k", "volumeType": "Export", "status": "Active"}],
-              "policyUpdates": [{"country": "Indonesia", "update": "string"}]
-            }`
+            text: `Generate a market report for Vegetable Oils (Palm, Soy, Sunflower) in JSON format. 
+            Use this structure: {
+              "summary": "string",
+              "topNews": [{"commodity": "string", "headline": "string", "content": "string"}],
+              "priceTrends": [{"commodity": "string", "trend": "up", "details": "string"}],
+              "tradeTable": [{"country": "string", "commodity": "string", "volume": "string", "volumeType": "string", "status": "string"}],
+              "policyUpdates": [{"country": "string", "update": "string"}]
+            }. Return ONLY JSON.`
           }]
         }]
       })
     });
 
+    if (!response.ok) return { report: null, sources: [] };
+
     const result = await response.json();
     const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    
-    const cleanJson = textResponse.replace(/```json|```/g, '').trim();
-    const parsedReport = JSON.parse(cleanJson);
+    const report = parseGeminiResponse(textResponse);
 
     return { 
-      report: parsedReport as MarketReport, 
+      report: report as MarketReport, 
       sources: [] 
     };
   } catch (error) {
-    console.error("Error fetching market report:", error);
+    console.error("fetchWeeklyMarketReport failed:", error);
     return { report: null, sources: [] };
   }
 };
