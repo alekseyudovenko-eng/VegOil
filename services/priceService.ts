@@ -28,7 +28,8 @@ export const fetchRealtimePriceData = async (timeframe: Timeframe): Promise<{ da
         'X-Title': 'Palm Oil Price Dashboard'
       },
       body: JSON.stringify({
-        model: 'google/gemini-flash-1.5',
+        // В блоке body: JSON.stringify({...})
+        model: 'google/gemini-flash-1.5-exp', // Добавим -exp или попробуй 'google/gemini-flash-1.5'
         messages: [{
           role: 'user',
           content: `Provide historical price data for FCPO (Palm Oil) for ${timeframe}. 
