@@ -1,68 +1,76 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { PriceData, Timeframe, GroundingSource, MarketReport as MarketReportType } from './types';
-import { fetchRealtimePriceData, fetchWeeklyMarketReport } from './services/priceService';
-import DashboardHeader from './components/DashboardHeader';
-import TimeframeSelector from './components/TimeframeSelector';
-import PriceChart from './components/PriceChart';
-import MarketReport from './components/MarketReport';
-import { TIMEFRAMES } from './constants';
+import React, { useState, useEffect } from 'react';
+import { DashboardHeader } from './components/DashboardHeader';
+import { PriceChart } from './components/PriceChart';
+import { fetchRealtimePriceData } from './services/priceService';
+import { Timeframe, PriceData } from './types';
 
-const App: React.FC = () => {
-  const [data, setData] = useState<PriceData[]>([]);
-  const [report, setReport] = useState<MarketReportType | null>(null);
+function App() {
   const [timeframe, setTimeframe] = useState<Timeframe>('1M');
+  const [priceData, setPriceData] = useState<PriceData[]>([]);
   const [loading, setLoading] = useState(true);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [error, setError] = useState(false);
 
-  const loadAll = useCallback(async () => {
+  const loadData = async () => {
     setLoading(true);
+    setError(false);
     try {
-      // Загружаем цены
-      const priceRes = await fetchRealtimePriceData(timeframe);
-      setData(priceRes.data);
-      
-      // Пауза 6 секунд перед отчетом для лимитов
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(async () => {
-        const repRes = await fetchWeeklyMarketReport();
-        setReport(repRes.report);
-      }, 6000);
+      const result = await fetchRealtimePriceData(timeframe);
+      if (result.data.length > 0) {
+        setPriceData(result.data);
+      } else {
+        setError(true);
+      }
     } catch (e) {
-      console.error(e);
+      setError(true);
     } finally {
       setLoading(false);
     }
-  }, [timeframe]);
+  };
 
   useEffect(() => {
-    loadAll();
-    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
-  }, [loadAll]);
+    loadData();
+  }, [timeframe]);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <DashboardHeader 
-          priceInfo={{ price: data[data.length-1]?.close || 0, change: 0, changePercent: 0 }} 
-          isLoading={loading} 
-          onRefresh={loadAll} 
-        />
-        <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-          <TimeframeSelector timeframes={TIMEFRAMES} activeTimeframe={timeframe} onSelect={setTimeframe} />
-          <div className="h-[400px] mt-6 relative">
-            {loading ? (
-              <div className="flex items-center justify-center h-full text-blue-500">Загрузка данных из Google Search...</div>
-            ) : data.length > 0 ? (
-              <PriceChart data={data} />
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-400 italic">Реальные данные не найдены. Попробуйте с VPN.</div>
-            )}
+    <div className="min-h-screen bg-slate-900 text-white p-4">
+      <DashboardHeader 
+        onRefresh={loadData} 
+        loading={loading}
+      />
+      
+      <main className="max-w-7xl mx-auto mt-8">
+        <div className="bg-slate-800 rounded-xl p-6 shadow-2xl border border-slate-700">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold">FCPO Futures (Bursa Malaysia)</h2>
+            <div className="flex gap-2">
+              {(['1W', '1M', '3M'] as Timeframe[]).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTimeframe(t)}
+                  className={`px-4 py-1 rounded ${timeframe === t ? 'bg-blue-600' : 'bg-slate-700 hover:bg-slate-600'}`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {loading ? (
+            <div className="h-80 flex items-center justify-center italic text-slate-400">
+              Получение реальных данных через OpenRouter...
+            </div>
+          ) : error ? (
+            <div className="h-80 flex flex-col items-center justify-center text-red-400">
+              <span>Данные не найдены.</span>
+              <span className="text-sm opacity-50">Проверьте ключ API или VPN (OpenRouter/Groq блокируют РФ).</span>
+            </div>
+          ) : (
+            <PriceChart data={priceData} />
+          )}
         </div>
-        {report && <MarketReport report={report} isLoading={false} />}
-      </div>
+      </main>
     </div>
   );
-};
+}
 
 export default App;
