@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface PriceInfo {
@@ -8,12 +7,13 @@ interface PriceInfo {
 }
 
 interface DashboardHeaderProps {
-  priceInfo: PriceInfo;
+  priceInfo?: PriceInfo; // Сделали опциональным, чтобы не падало при загрузке
   isLoading: boolean;
   onRefresh: () => void;
 }
 
 const formatCurrency = (value: number) => {
+  if (!value) return "MYR 0.00"; // Защита для форматтера
   return new Intl.NumberFormat('en-MY', {
     style: 'currency',
     currency: 'MYR',
@@ -27,7 +27,8 @@ const SkeletonLoader: React.FC<{ className?: string }> = ({ className }) => (
 );
 
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({ priceInfo, isLoading, onRefresh }) => {
-  const isPositive = priceInfo.change >= 0;
+  // ИСПРАВЛЕНИЕ: Добавили защиту. Если данных нет, по умолчанию считаем положительным (или 0)
+  const isPositive = (priceInfo?.change ?? 0) >= 0;
 
   return (
     <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
@@ -48,7 +49,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ priceInfo, isLoading,
         </p>
       </div>
       <div className="flex items-center gap-6 mt-4 sm:mt-0">
-         {isLoading ? (
+         {isLoading || !priceInfo ? ( // Добавили условие: если нет priceInfo, тоже показываем скелетон
           <div className="text-right">
             <SkeletonLoader className="h-8 w-40 mb-2" />
             <SkeletonLoader className="h-6 w-32" />
@@ -58,7 +59,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ priceInfo, isLoading,
             <p className="text-3xl font-bold text-gray-900 font-mono">
               {formatCurrency(priceInfo.price)}
             </p>
-            <p className={`text-lg font-bold ${isPositive ? 'text-brand-green' : 'text-brand-red'}`}>
+            <p className={`text-lg font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
               {isPositive ? '▲' : '▼'} {Math.abs(priceInfo.change).toFixed(2)} ({isPositive ? '+' : ''}{priceInfo.changePercent.toFixed(2)}%)
             </p>
           </div>
@@ -66,7 +67,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ priceInfo, isLoading,
         <button
           onClick={onRefresh}
           disabled={isLoading}
-          className="p-3 rounded-xl bg-white border border-gray-200 shadow-sm hover:border-brand-blue hover:text-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-50 transition-all active:scale-95"
+          className="p-3 rounded-xl bg-white border border-gray-200 shadow-sm hover:border-blue-500 hover:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-all active:scale-95"
           aria-label="Refresh data"
         >
           <svg
