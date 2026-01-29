@@ -1,85 +1,65 @@
-import { PriceData, MarketReport, Timeframe } from '../types';
+import { GoogleGenAI } from "@google/genai";
+import type { PriceData, Timeframe, GroundingSource, MarketReport } from '../types';
 
-// Не забудь поменять имя переменной в Vercel на VITE_GROQ_API_KEY
-const API_KEY = import.meta.env.VITE_GROQ_API_KEY;
-const BASE_URL = 'https://api.groq.com/openai/v1/chat/completions';
+// В Vite переменные окружения берутся так:
+const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
 
-const parseSafeJSON = (text: string) => {
+const genAI = new GoogleGenAI(GOOGLE_API_KEY);
+
+export const fetchRealtimePriceData = async (timeframe: Timeframe): Promise<{ data: PriceData[], sources: GroundingSource[], isFallback: boolean }> => {
+  const prompt = `SEARCH ONLINE for the latest Crude Palm Oil (FCPO) futures prices on Bursa Malaysia. 
+  Provide a historical OHLC time series for the past ${timeframe}. 
+  Return ONLY a valid JSON object: { "prices": [{ "date": "YYYY-MM-DD", "open": number, "high": number, "low": number, "close": number }] }.
+  Ensure the data reflects ACTUAL market prices.`;
+
   try {
-    const clean = text.replace(/```json|```/g, '').trim();
-    return JSON.parse(clean);
-  } catch (e) {
-    console.error("JSON Parse Error:", e);
-    return null;
-  }
-};
-
-export const fetchRealtimePriceData = async (timeframe: Timeframe): Promise<{ data: PriceData[], sources: any[] }> => {
-  try {
-    if (!API_KEY) return { data: [], sources: [] };
-
-    const response = await fetch(BASE_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        // Мощная и быстрая модель Llama 3.3 от Groq
-        model: 'llama-3.3-70b-versatile',
-        messages: [{
-          role: 'user',
-          content: `Return a JSON array of historical price data for FCPO (Palm Oil) for ${timeframe}. 
-          Format: [{"date": "2024-01-01", "open": 3800, "high": 3850, "low": 3780, "close": 3820}]. 
-          Return ONLY the array. Min 20 points.`
-        }],
-        temperature: 0.1 // Делаем ответ более стабильным
-      })
+    // Правильный синтаксис для @google/genai
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash", 
+      tools: [{ googleSearch: {} }] as any 
     });
 
-    const result = await response.json();
-    const text = result.choices?.[0]?.message?.content || '[]';
-    const parsed = parseSafeJSON(text);
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    // Чистим JSON от возможных маркдаун-тегов ```json
+    const cleanJson = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(cleanJson);
 
-    return { data: Array.isArray(parsed) ? parsed : [], sources: [] };
+    // Извлекаем ссылки из Grounding Metadata
+    const searchSources = response.candidates?.[0]?.groundingMetadata?.searchEntryPoint?.html 
+      ? [{ title: "Google Search Real-time", uri: "[https://google.com](https://google.com)" }] 
+      : [];
+
+    return { 
+      data: parsed.prices || [], 
+      sources: searchSources,
+      isFallback: false 
+    };
+
   } catch (error) {
-    console.error("Groq Price Fetch failed:", error);
-    return { data: [], sources: [] };
-  }
-};
-
-export const fetchWeeklyMarketReport = async (): Promise<{ report: MarketReport | null, sources: any[] }> => {
-  try {
-    if (!API_KEY) return { report: null, sources: [] };
-
-    const response = await fetch(BASE_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{
-          role: 'user',
-          content: `Generate a market report for Vegetable Oils in JSON: {
-            "summary": "string",
-            "topNews": [{"commodity": "string", "headline": "string", "content": "string"}],
-            "priceTrends": [{"commodity": "string", "trend": "up", "details": "string"}],
-            "tradeTable": [{"country": "string", "commodity": "string", "volume": "string", "volumeType": "string", "status": "string"}],
-            "policyUpdates": [{"country": "string", "update": "string"}]
-          }. Return ONLY JSON.`
-        }]
-      })
-    });
-
-    const result = await response.json();
-    const text = result.choices?.[0]?.message?.content || '{}';
-    const parsed = parseSafeJSON(text);
-
-    return { report: parsed as MarketReport, sources: [] };
-  } catch (error) {
-    console.error("Groq Report fetch failed:", error);
-    return { report: null, sources: [] };
+    console.error("Google AI Error:", error);
+    
+    // Если Google заблокирован (VPN выключен), используем Groq
+    if (GROQ_API_KEY) {
+      const groqRes = await fetch('[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: prompt }],
+          response_format: { type: "json_object" }
+        })
+      });
+      const resData = await groqRes.json();
+      const parsed = JSON.parse(resData.choices[0].message.content);
+      return { data: parsed.prices || [], sources: [], isFallback: true };
+    }
+    return { data: [], sources: [], isFallback: true };
   }
 };
