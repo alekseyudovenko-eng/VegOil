@@ -3,8 +3,8 @@ export default async function handler(req, res) {
   const TAVILY_KEY = process.env.TAVILY_API_KEY;
 
   try {
-    // Собираем данные строго по твоим источникам за 29 января 2026 и неделю до
-    const query = "FCPO prices 23-29 January 2026 Bursa Malaysia Star NST Agropost GrainCentral";
+    // Расширенный поиск по всем категориям из твоего запроса
+    const query = "Vegetable oils market report Jan 29 2026: Palm, Sunflower, Soybean, Rapeseed Oil, Margarine, Crude Oil prices and policy updates";
     
     const searchRes = await fetch("https://api.tavily.com/search", {
       method: "POST",
@@ -13,13 +13,7 @@ export default async function handler(req, res) {
         api_key: TAVILY_KEY,
         query: query,
         search_depth: "advanced",
-        include_domains: [
-          "thestar.com.my", 
-          "nst.com.my", 
-          "graincentral.com", 
-          "agropost.wordpress.com",
-          "finimize.com"
-        ]
+        max_results: 8
       })
     });
     
@@ -34,17 +28,20 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `You are a financial analyst. Today is Jan 29, 2026. 
-            Extract historical FCPO prices for the LAST 7 DAYS (Jan 23 to Jan 29, 2026) using the provided context. 
-            Ensure each date has a unique price. Return ONLY JSON.` 
+            content: "You are a senior market intelligence analyst. Provide a structured report based on the context. Return ONLY JSON." 
           },
           { 
             role: "user", 
-            content: `Context: ${context}\n\nTask: Return JSON with:
-            1. "prices": array of 7 objects {date: "YYYY-MM-DD", close: number}
-            2. "analysis": 2-sentence market summary based on the news.
-            3. "news": 3 specific headlines from the sources.
-            4. "trend": "Bullish" or "Bearish".` 
+            content: `Context: ${context}\n\nTask: Generate a report for Jan 29, 2026.
+            IMPORTANT: Round all prices to the nearest whole number (no decimals).
+            JSON structure:
+            {
+              "prices": [{"date": "YYYY-MM-DD", "close": 3950}], 
+              "summary": "Executive summary here...",
+              "topNews": { "Palm": "", "Sunflower": "", "Soybean": "", "Rapeseed": "", "Margarine": "", "CrudeOil": "" },
+              "policy": ["Update 1", "Update 2"],
+              "trends": { "Palm": "Bullish", "Sunflower": "Neutral", "Soybean": "Bearish", "Rapeseed": "", "Margarine": "", "CrudeOil": "" }
+            }` 
           }
         ],
         response_format: { type: "json_object" }
