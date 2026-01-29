@@ -1,98 +1,94 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import DashboardHeader from './components/DashboardHeader';
-import PriceChart from './components/PriceChart';
 
 function App() {
-  const [report, setReport] = useState<any>(null);
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/get-prices');
-      const data = await response.json();
-      setReport(data);
-    } catch (e) { console.error("Data fetch failed", e); }
+      const response = await fetch('/api/get-prices'); // Оставляем тот же эндпоинт, но код в нем новый
+      const result = await response.json();
+      setData(result);
+    } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const priceInfo = useMemo(() => {
-    if (!report?.prices || report.prices.length < 2) return undefined;
-    const p = report.prices;
-    const last = p[p.length - 1];
-    const prev = p[p.length - 2];
-    return {
-      price: Math.round(last.close),
-      change: Math.round(last.close - prev.close),
-      changePercent: Number(((last.close - prev.close) / prev.close * 100).toFixed(2))
-    };
-  }, [report]);
-
-  if (loading && !report) return (
-    <div className="h-screen flex items-center justify-center bg-white italic text-slate-400">
-      Syncing Intelligence Channels...
+  if (loading && !data) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-mono uppercase tracking-[0.3em]">
+      Loading Intelligence Report...
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#fcfcfc] p-4 md:p-8 text-slate-900 font-sans">
+    <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-8 font-sans text-slate-900">
       <div className="max-w-6xl mx-auto space-y-6">
         
-        <DashboardHeader priceInfo={priceInfo} isLoading={loading} onRefresh={loadData} />
+        <DashboardHeader isLoading={loading} onRefresh={loadData} />
 
-        {/* Раздел 1: Executive Summary */}
-        <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-          <h2 className="text-[10px] font-black mb-4 text-blue-600 uppercase tracking-[0.3em]">Executive Summary</h2>
-          <p className="text-xl font-medium text-slate-800 leading-snug">
-            {report?.summary}
+        {/* Executive Summary */}
+        <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+          <h2 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-4 italic">Executive Summary (Jan 29, 2026)</h2>
+          <p className="text-2xl font-bold leading-tight text-slate-800">
+            {data?.executive_summary}
           </p>
         </section>
 
-        {/* Раздел 2: Market Chart */}
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-          <div className="h-[300px] w-full">
-            {report?.prices?.length > 0 && (
-              <PriceChart data={report.prices} key={report.prices.length} />
-            )}
-          </div>
-        </div>
-
-        {/* Раздел 3: Top News by Commodity */}
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {report?.topNews && Object.entries(report.topNews).map(([commodity, news]: any) => (
-            <div key={commodity} className="bg-white p-4 rounded-2xl border border-slate-50 shadow-sm">
-              <h4 className="text-[9px] font-black text-slate-400 uppercase mb-2">{commodity}</h4>
-              <p className="text-[11px] text-slate-600 leading-tight line-clamp-4">{news}</p>
+        {/* Top News by Product */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {data?.top_news && Object.entries(data.top_news).map(([product, news]: any) => (
+            <div key={product} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
+              <div>
+                <h3 className="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">{product}</h3>
+                <p className="text-sm font-medium text-slate-700 leading-snug">{news}</p>
+              </div>
+              <div className="mt-4 pt-4 border-t border-slate-50 flex justify-between items-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Market Trend</span>
+                <span className={`text-xs font-black uppercase ${data.trends?.[product] === 'Bullish' ? 'text-green-600' : 'text-red-600'}`}>
+                  {data.trends?.[product]}
+                </span>
+              </div>
             </div>
           ))}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Раздел 4: Regulatory */}
-          <div className="bg-slate-900 text-white p-8 rounded-[2.5rem]">
-            <h3 className="text-sm font-bold mb-4 uppercase text-yellow-500">Regulatory Updates</h3>
-            <ul className="space-y-3">
-              {report?.policy?.map((p: string, i: number) => (
-                <li key={i} className="text-xs opacity-70 border-l border-white/20 pl-4">{p}</li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Раздел 5: Trends */}
-          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100">
-            <h3 className="text-sm font-bold mb-4 uppercase text-slate-400">Market Trend Analysis</h3>
-            <div className="space-y-2">
-              {report?.trends && Object.entries(report.trends).map(([c, t]: any) => (
-                <div key={c} className="flex justify-between items-center py-2 border-b border-slate-50 last:border-0">
-                  <span className="text-xs font-bold text-slate-700">{c}</span>
-                  <span className={`text-[10px] font-black uppercase ${t === 'Bullish' ? 'text-green-600' : 'text-red-600'}`}>{t}</span>
+          {/* Regional Updates */}
+          <section className="bg-slate-900 text-white p-8 rounded-[2.5rem]">
+            <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
+              <span className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></span>
+              Regional Intelligence
+            </h2>
+            <div className="space-y-6">
+              {data?.regional_updates?.map((reg: any, i: number) => (
+                <div key={i} className="border-l-2 border-white/10 pl-4 py-1">
+                  <h4 className="text-xs font-bold text-yellow-400 uppercase mb-1">{reg.region}</h4>
+                  <p className="text-sm opacity-80 leading-relaxed">{reg.update}</p>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
+
+          {/* Policy & Focus (Fall-through block) */}
+          <section className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+            <h2 className="text-xl font-bold mb-6 text-slate-800">Key Takeaways</h2>
+            <div className="space-y-4">
+              <div className="p-4 bg-blue-50 rounded-2xl">
+                <p className="text-sm text-blue-800 font-medium">Мониторинг охватывает: ЕС, РФ, Украина, Казахстан, Узбекистан, Кавказский регион.</p>
+              </div>
+              <p className="text-sm text-slate-500 leading-relaxed italic">
+                Аналитика сформирована на основе данных Bursa Malaysia, TradingView и региональных новостных агентств по состоянию на 29 января 2026 года.
+              </p>
+            </div>
+          </section>
         </div>
+
+        <footer className="text-center py-10 opacity-30 text-[9px] uppercase tracking-[0.5em]">
+          Eurasia Edible Oils Intelligence • No Graph Mode • Active
+        </footer>
       </div>
     </div>
   );
