@@ -12,7 +12,7 @@ function App() {
       const response = await fetch('/api/get-prices');
       const data = await response.json();
       setReport(data);
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Data fetch failed", e); }
     finally { setLoading(false); }
   }, []);
 
@@ -23,7 +23,6 @@ function App() {
     const p = report.prices;
     const last = p[p.length - 1];
     const prev = p[p.length - 2];
-    // Округляем до целых для Header
     return {
       price: Math.round(last.close),
       change: Math.round(last.close - prev.close),
@@ -31,74 +30,69 @@ function App() {
     };
   }, [report]);
 
-  if (loading && !report) return <div className="h-screen flex items-center justify-center bg-slate-50 animate-pulse font-bold text-slate-400">Generatig Intelligence Report...</div>;
+  if (loading && !report) return (
+    <div className="h-screen flex items-center justify-center bg-white italic text-slate-400">
+      Syncing Intelligence Channels...
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-8 text-slate-900 font-sans">
+    <div className="min-h-screen bg-[#fcfcfc] p-4 md:p-8 text-slate-900 font-sans">
       <div className="max-w-6xl mx-auto space-y-6">
         
         <DashboardHeader priceInfo={priceInfo} isLoading={loading} onRefresh={loadData} />
 
-        {/* 1. Executive Summary */}
-        <section className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
-          <h2 className="text-2xl font-black mb-4 text-slate-800 uppercase tracking-tight">Executive Summary</h2>
-          <p className="text-slate-600 leading-relaxed text-lg italic">"{report?.summary}"</p>
+        {/* Раздел 1: Executive Summary */}
+        <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+          <h2 className="text-[10px] font-black mb-4 text-blue-600 uppercase tracking-[0.3em]">Executive Summary</h2>
+          <p className="text-xl font-medium text-slate-800 leading-snug">
+            {report?.summary}
+          </p>
         </section>
 
-        {/* 2. Chart Section (Rounded Data) */}
-        <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
-          <h2 className="font-bold text-slate-800 mb-6 uppercase tracking-wider text-sm">FCPO 7-Day Price Action (MYR)</h2>
-          <div className="h-[300px]">
-             <PriceChart data={report?.prices || []} />
+        {/* Раздел 2: Market Chart */}
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+          <div className="h-[300px] w-full">
+            {report?.prices?.length > 0 && (
+              <PriceChart data={report.prices} key={report.prices.length} />
+            )}
           </div>
         </div>
 
-        {/* 3. Top News by Commodity */}
-        <section className="space-y-4">
-          <h2 className="text-xl font-bold px-2">Top News by Commodity</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {report?.topNews && Object.entries(report.topNews).map(([commodity, news]: any) => (
-              <div key={commodity} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                <span className="text-[10px] font-black text-blue-500 uppercase">{commodity}</span>
-                <p className="text-sm mt-2 text-slate-700 leading-snug">{news || "No significant updates for this period."}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+        {/* Раздел 3: Top News by Commodity */}
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {report?.topNews && Object.entries(report.topNews).map(([commodity, news]: any) => (
+            <div key={commodity} className="bg-white p-4 rounded-2xl border border-slate-50 shadow-sm">
+              <h4 className="text-[9px] font-black text-slate-400 uppercase mb-2">{commodity}</h4>
+              <p className="text-[11px] text-slate-600 leading-tight line-clamp-4">{news}</p>
+            </div>
+          ))}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* 4. Regulatory & Policy */}
-          <section className="bg-slate-800 text-white p-8 rounded-[2rem] shadow-xl">
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-              <span className="w-2 h-2 bg-yellow-400 rounded-full"></span>
-              Regulatory & Policy Updates
-            </h2>
-            <ul className="space-y-4">
-              {report?.policy?.map((item: string, i: number) => (
-                <li key={i} className="text-sm text-slate-300 border-l-2 border-yellow-400 pl-4 py-1">{item}</li>
+          {/* Раздел 4: Regulatory */}
+          <div className="bg-slate-900 text-white p-8 rounded-[2.5rem]">
+            <h3 className="text-sm font-bold mb-4 uppercase text-yellow-500">Regulatory Updates</h3>
+            <ul className="space-y-3">
+              {report?.policy?.map((p: string, i: number) => (
+                <li key={i} className="text-xs opacity-70 border-l border-white/20 pl-4">{p}</li>
               ))}
             </ul>
-          </section>
+          </div>
 
-          {/* 5. Market Trend Analysis */}
-          <section className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
-            <h2 className="text-xl font-bold mb-4">Market Trend Analysis</h2>
-            <div className="grid grid-cols-2 gap-4">
-              {report?.trends && Object.entries(report.trends).map(([comm, trend]: any) => (
-                <div key={comm} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
-                  <span className="text-xs font-bold text-slate-500">{comm}</span>
-                  <span className={`text-xs font-black uppercase ${trend === 'Bullish' ? 'text-green-600' : trend === 'Bearish' ? 'text-red-600' : 'text-slate-400'}`}>
-                    {trend}
-                  </span>
+          {/* Раздел 5: Trends */}
+          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100">
+            <h3 className="text-sm font-bold mb-4 uppercase text-slate-400">Market Trend Analysis</h3>
+            <div className="space-y-2">
+              {report?.trends && Object.entries(report.trends).map(([c, t]: any) => (
+                <div key={c} className="flex justify-between items-center py-2 border-b border-slate-50 last:border-0">
+                  <span className="text-xs font-bold text-slate-700">{c}</span>
+                  <span className={`text-[10px] font-black uppercase ${t === 'Bullish' ? 'text-green-600' : 'text-red-600'}`}>{t}</span>
                 </div>
               ))}
             </div>
-          </section>
+          </div>
         </div>
-
-        <footer className="py-10 text-center text-slate-400 text-[10px] uppercase tracking-[0.2em]">
-          Internal Intelligence Report • January 29, 2026 • Confidential
-        </footer>
       </div>
     </div>
   );
