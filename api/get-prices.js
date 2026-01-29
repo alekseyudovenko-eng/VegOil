@@ -1,55 +1,44 @@
 export default async function handler(req, res) {
+  const { timeframe } = req.query;
   const GROQ_KEY = process.env.VITE_GROQ_API_KEY;
-  const TAVILY_KEY = process.env.TAVILY_API_KEY; // Твой новый ключ
+  const TAVILY_KEY = process.env.TAVILY_API_KEY; // Получи бесплатно на tavily.com
 
   try {
-    // 1. ПОИСК В РЕАЛЬНОМ ВРЕМЕНИ
-    const searchResponse = await fetch("https://api.tavily.com/search", {
+    // 1. ПОИСК РЕАЛЬНЫХ ДАННЫХ
+    const searchRes = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        query: "current Crude Palm Oil FCPO price Bursa Malaysia today news",
-        search_depth: "advanced",
-        include_answer: true
+        query: `Crude Palm Oil FCPO price Bursa Malaysia ${timeframe} trends news`,
+        search_depth: "basic"
       })
     });
-    const searchResults = await searchResponse.json();
-    const context = searchResults.results.map(r => r.content).join("\n");
+    const searchData = await searchRes.json();
+    const context = searchData.results.map(r => r.content).join("\n").slice(0, 5000);
 
-    // 2. ОБРАБОТКА ДАННЫХ ЧЕРЕЗ GROQ
-    const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    // 2. ОБРАБОТКА В GROQ
+    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { 
-        "Authorization": `Bearer ${GROQ_KEY}`, 
+        "Authorization": `Bearer ${GROQ_KEY}`,
         "Content-Type": "application/json" 
       },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         messages: [
-          {
-            role: "system",
-            content: `You are a data extractor. Use the provided web search context to return ONLY JSON. 
-            Context: ${context}`
-          },
-          {
-            role: "user",
-            content: `Based on the context, extract: 
-            1. Last 7-10 days prices for FCPO (if dates missing, use current date and estimate backwards realistically).
-            2. Market analysis summary.
-            3. 3 latest news headlines.
-            4. Current trend.
-            Format: {"prices": [{"date": "YYYY-MM-DD", "close": number, ...}], "analysis": "", "news": [], "trend": ""}`
-          }
+          { role: "system", content: "You are a market analyst. Use the context to return ONLY JSON." },
+          { role: "user", content: `Context: ${context}\n\nReturn JSON: {"prices": [{"date": "YYYY-MM-DD", "close": 123}], "analysis": "...", "news": ["...", "..."], "trend": "Bullish/Bearish"}` }
         ],
         response_format: { type: "json_object" }
       })
     });
 
-    const finalData = await groqResponse.json();
-    res.status(200).json(JSON.parse(finalData.choices[0].message.content));
+    const data = await groqRes.json();
+    if (!data.choices) throw new Error("Groq returned no choices");
+    
+    res.status(200).json(JSON.parse(data.choices[0].message.content));
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Failed to fetch online data" });
+    res.status(500).json({ error: e.message });
   }
 }
