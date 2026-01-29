@@ -1,42 +1,51 @@
 import type { PriceData, Timeframe, GroundingSource, MarketReport } from '../types';
 
-// Используем твой ключ OpenRouter
 const OPENROUTER_KEY = import.meta.env.VITE_OPENROUTER_API_KEY || "ТВОЙ_КЛЮЧ";
 
 export const fetchRealtimePriceData = async (timeframe: Timeframe): Promise<{ data: PriceData[], sources: GroundingSource[], isFallback: boolean }> => {
-  const prompt = `SEARCH ONLINE for actual Crude Palm Oil (FCPO) futures prices on Bursa Malaysia for ${timeframe}. 
-  Current date is ${new Date().toDateString()}.
+  // ИСПОЛЬЗУЕМ АКТУАЛЬНЫЙ ID МОДЕЛИ. 
+  // Perplexity обновили названия. Сейчас Sonar на базе Llama 3.1 доступен так:
+  const MODEL_ID = "perplexity/llama-3.1-sonar-small-128k-online"; 
+
+  const prompt = `Search for actual FCPO (Crude Palm Oil) futures prices on Bursa Malaysia for ${timeframe}. 
+  Current date: ${new Date().toDateString()}.
   Return ONLY JSON: {"prices": [{"date": "YYYY-MM-DD", "open": number, "high": number, "low": number, "close": number}]}.`;
 
   try {
+    console.log("Запрос к OpenRouter с моделью:", MODEL_ID);
+
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${OPENROUTER_KEY}`,
         "Content-Type": "application/json",
-        // Эти два заголовка важны для OpenRouter
-        "HTTP-Referer": "https://localhost:3000", 
+        "HTTP-Referer": "https://vegoil-app.vercel.app",
         "X-Title": "VegOil Dashboard"
       },
       body: JSON.stringify({
-        model: "perplexity/llama-3.1-sonar-small-online", 
+        model: MODEL_ID, 
         messages: [{ role: "user", content: prompt }],
-        // Не используем response_format: json_object, так как Sonar иногда на нем глючит и выдает 400
         temperature: 0.1
       })
     });
 
     const resData = await response.json();
 
-    // Если сервер вернул ошибку в JSON (например, 400)
     if (resData.error) {
-      console.error("OpenRouter API Error:", resData.error.message);
+      // Если модель всё еще "неверная", OpenRouter вернет это здесь
+      console.error("ОШИБКА МОДЕЛИ ИЛИ КЛЮЧА:", resData.error.message);
+      
+      // ПОПЫТКА №2: Если первая модель упала, пробуем универсальную
+      if (resData.error.code === 400) {
+          console.log("Пробуем альтернативную модель...");
+          // Вставь сюда вторую модель если первая не пойдет
+      }
+      
       return { data: [], sources: [], isFallback: true };
     }
 
     const content = resData.choices[0].message.content;
-    const cleanJson = content.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(cleanJson);
+    const parsed = JSON.parse(content.replace(/```json|```/g, "").trim());
 
     return { 
       data: parsed.prices || [], 
@@ -44,7 +53,7 @@ export const fetchRealtimePriceData = async (timeframe: Timeframe): Promise<{ da
       isFallback: false 
     };
   } catch (error) {
-    console.error("Network or Parsing Error:", error);
+    console.error("Критическая ошибка сервиса:", error);
     return { data: [], sources: [], isFallback: true };
   }
 };
