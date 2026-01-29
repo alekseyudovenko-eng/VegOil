@@ -1,9 +1,10 @@
 export const fetchRealtimePriceData = async (timeframe: Timeframe) => {
-  const prompt = `GET REAL TIME DATA: Crude Palm Oil (FCPO) futures price on Bursa Malaysia for ${timeframe}. 
-  Provide actual daily OHLC. If you don't have access to real-time search, DO NOT MAKE UP NUMBERS. Return empty JSON {"prices": []}.`;
+  const prompt = `REAL-TIME SEARCH REQUIRED. Use online tools to find the ACTUAL historical OHLC prices for Bursa Malaysia Crude Palm Oil (FCPO) futures for the period: ${timeframe}. 
+  Today is ${new Date().toLocaleDateString()}.
+  Return ONLY JSON: {"prices": [{"date": "YYYY-MM-DD", "open": number, "high": number, "low": number, "close": number}]}.
+  IF YOU CANNOT FIND REAL DATA, RETURN {"prices": []}. DO NOT FABRICATE.`;
 
   try {
-    // 1. Пробуем OpenRouter с моделью, которая умеет искать (например, Perplexity или Llama 3.1 Online)
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -11,7 +12,8 @@ export const fetchRealtimePriceData = async (timeframe: Timeframe) => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "perplexity/llama-3.1-sonar-small-online", // Эта модель ОБЯЗАНА искать в сети
+        // Используем поисковую модель от Perplexity через OpenRouter
+        model: "perplexity/llama-3.1-sonar-small-online", 
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" }
       })
@@ -21,15 +23,14 @@ export const fetchRealtimePriceData = async (timeframe: Timeframe) => {
     const content = resData.choices[0].message.content;
     const parsed = JSON.parse(content);
 
-    if (parsed.prices.length === 0) throw new Error("No real data found");
-    
-    return { data: parsed.prices, sources: [{title: "OpenRouter/Perplexity Search", uri: "#"}], isFallback: false };
-
+    // Если модель вернула пустой список — значит, данных нет, и это ЧЕСТНО.
+    return { 
+      data: parsed.prices, 
+      sources: [{title: "OpenRouter / Perplexity Search", uri: "#"}], 
+      isFallback: false 
+    };
   } catch (error) {
-    console.error("OpenRouter Search failed, using Groq as local-knowledge fallback...");
-    
-    // 2. Groq как запасной вариант (но тут данные будут не real-time, а до 2024 года)
-    // Здесь мы можем честно написать в интерфейсе: "Data is simulated/historical"
-    // ... твой старый код для Groq ...
+    console.error("Real-time fetch failed");
+    return { data: [], sources: [], isFallback: true };
   }
 };
