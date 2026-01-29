@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
-// Импортируем компоненты как default, чтобы избежать ошибок билда
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import DashboardHeader from './components/DashboardHeader';
 import PriceChart from './components/PriceChart';
 import { fetchRealtimePriceData } from './services/priceService';
@@ -15,19 +14,21 @@ function App() {
     setLoading(true);
     setError(null);
     try {
-      console.log(`Запуск загрузки данных для таймфрейма: ${timeframe}`);
+      console.log("Запрос данных через OpenRouter...");
       const result = await fetchRealtimePriceData(timeframe);
       
       if (result && result.data && result.data.length > 0) {
-        console.log("Данные успешно получены:", result.data);
-        setPriceData(result.data);
+        // Сортируем данные по дате на всякий случай
+        const sortedData = [...result.data].sort((a, b) => 
+          new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+        setPriceData(sortedData);
       } else {
-        console.warn("Сервис вернул пустой массив данных.");
-        setError("Реальные данные не найдены. Попробуйте обновить страницу с включенным VPN.");
+        setError("Реальные данные не найдены. Проверьте VPN.");
       }
     } catch (e: any) {
-      console.error("Ошибка в App.tsx при загрузке:", e);
-      setError(e.message || "Произошла ошибка при получении данных.");
+      console.error("Критическая ошибка App:", e);
+      setError("Ошибка соединения с API OpenRouter.");
     } finally {
       setLoading(false);
     }
@@ -37,83 +38,87 @@ function App() {
     loadData();
   }, [loadData]);
 
-  return (
-    <div className="min-h-screen bg-[#0f172a] text-slate-200 font-sans">
-      {/* Шапка с кнопкой обновления */}
-      <DashboardHeader 
-        onRefresh={loadData} 
-        loading={loading}
-      />
-      
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="bg-[#1e293b] rounded-2xl p-6 shadow-2xl border border-slate-700/50">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-            <div>
-              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <span className="w-2 h-8 bg-blue-500 rounded-full"></span>
-                FCPO Futures Prices
-              </h2>
-              <p className="text-slate-400 text-sm mt-1">Bursa Malaysia • Real-time via OpenRouter</p>
-            </div>
-            
-            {/* Переключатель таймфреймов */}
-            <div className="flex bg-[#0f172a] p-1 rounded-lg border border-slate-700">
-              {(['1W', '1M', '3M'] as Timeframe[]).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTimeframe(t)}
-                  className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${
-                    timeframe === t 
-                    ? 'bg-blue-600 text-white shadow-lg' 
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
+  // Вычисляем данные для DashboardHeader на основе полученного массива
+  const priceInfo = useMemo(() => {
+    if (priceData.length === 0) return undefined;
 
-          {/* Основная область контента */}
-          <div className="relative min-h-[400px] w-full bg-[#0f172a]/50 rounded-xl border border-slate-800 flex items-center justify-center">
-            {loading ? (
-              <div className="flex flex-col items-center gap-4">
-                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-slate-400 animate-pulse italic">Поиск актуальных котировок...</p>
+    const last = priceData[priceData.length - 1];
+    const prev = priceData[priceData.length - 2] || last;
+    
+    const change = last.close - prev.close;
+    const changePercent = prev.close !== 0 ? (change / prev.close) * 100 : 0;
+
+    return {
+      price: last.close,
+      change: change,
+      changePercent: changePercent
+    };
+  }, [priceData]);
+
+  return (
+    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        {/* Шапка с защищенными данными */}
+        <DashboardHeader 
+          priceInfo={priceInfo} 
+          isLoading={loading} 
+          onRefresh={loadData} 
+        />
+        
+        <main className="mt-8">
+          <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+              <h2 className="text-xl font-bold text-gray-800">Обзор рынка (Bursa Malaysia)</h2>
+              
+              {/* Переключатель периодов */}
+              <div className="flex bg-gray-100 p-1 rounded-xl">
+                {(['1W', '1M', '3M'] as Timeframe[]).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setTimeframe(t)}
+                    className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                      timeframe === t 
+                      ? 'bg-white text-blue-600 shadow-sm' 
+                      : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
               </div>
-            ) : error ? (
-              <div className="text-center p-8">
-                <div className="text-4xl mb-4">⚠️</div>
-                <h3 className="text-lg font-semibold text-white mb-2">{error}</h3>
-                <p className="text-slate-400 text-sm mb-6 max-w-md">
-                  Для работы OpenRouter (модели Perplexity Sonar) в РФ требуется стабильный VPN. 
-                  Также убедитесь, что ключ API добавлен в переменные Vercel.
-                </p>
-                <button 
-                  onClick={loadData}
-                  className="px-8 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-full transition-colors"
-                >
-                  Повторить запрос
-                </button>
-              </div>
-            ) : (
-              // Рендерим график только если есть данные, чтобы избежать ошибки .change
-              <div className="w-full h-full p-2">
-                <PriceChart data={priceData} />
-              </div>
-            )}
-          </div>
-          
-          <div className="mt-6 flex items-center gap-4 text-xs text-slate-500">
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-              System Live
             </div>
-            <div>Source: Perplexity Llama 3.1 Sonar</div>
-            <div className="ml-auto">Last updated: {new Date().toLocaleTimeString()}</div>
+
+            {/* Сетка графика */}
+            <div className="min-h-[450px] w-full flex items-center justify-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+              {loading ? (
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-gray-400 text-sm italic">Ищем котировки через Sonar...</p>
+                </div>
+              ) : error ? (
+                <div className="text-center">
+                  <p className="text-red-500 font-medium mb-2">{error}</p>
+                  <button 
+                    onClick={loadData}
+                    className="text-sm text-blue-500 hover:underline"
+                  >
+                    Попробовать еще раз
+                  </button>
+                </div>
+              ) : (
+                <div className="w-full h-[450px]">
+                  <PriceChart data={priceData} />
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
+
+        <footer className="mt-8 text-center text-gray-400 text-xs">
+          <p>Данные предоставлены OpenRouter / Perplexity Sonar. Требуется VPN для работы из РФ.</p>
+        </footer>
+      </div>
     </div>
   );
 }
