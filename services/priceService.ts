@@ -1,47 +1,53 @@
-import { GoogleGenAI } from "@google/genai";
+import type { PriceData, Timeframe, GroundingSource, MarketReport } from '../types';
 
-// Ключ захардкожен для надежности
-const KEY = "AIzaSyA-INmSVe6vtt9rVNkn0_h0aoeIcHIbvIk";
+// Используй переменную VITE_OPENROUTER_API_KEY в Vercel 
+// или вставь свой ключ строкой ниже для моментальной проверки
+const OPENROUTER_KEY = import.meta.env.VITE_OPENROUTER_API_KEY || "ТВОЙ_КЛЮЧ_ОТ_OPENROUTER";
 
-export const fetchRealtimePriceData = async (timeframe: string) => {
-  // 1. Проверка ключа ВНУТРИ функции (чтобы не было белого экрана при загрузке)
-  if (!KEY) {
-      console.error("API KEY IS MISSING");
-      return { data: [], sources: [], isFallback: true };
-  }
+export const fetchRealtimePriceData = async (timeframe: Timeframe): Promise<{ data: PriceData[], sources: GroundingSource[], isFallback: boolean }> => {
+  const prompt = `SEARCH THE WEB for actual Crude Palm Oil (FCPO) futures prices on Bursa Malaysia for the ${timeframe} period. 
+  Current date is ${new Date().toDateString()}.
+  Return ONLY a valid JSON object: {"prices": [{"date": "YYYY-MM-DD", "open": number, "high": number, "low": number, "close": number}]}.
+  If you cannot find real numbers for today, return {"prices": []}. DO NOT MAKE UP NUMBERS.`;
 
   try {
-    // 2. Инициализация ТОЛЬКО в момент вызова
-    const genAI = new GoogleGenAI(KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    const prompt = `SEARCH ONLINE for actual FCPO (Crude Palm Oil) futures prices on Bursa Malaysia. 
-    Today is ${new Date().toDateString()}. 
-    Provide daily OHLC data for ${timeframe}. 
-    Return ONLY JSON: {"prices": [{"date": "YYYY-MM-DD", "open": number, "high": number, "low": number, "close": number}]}.`;
-
-    console.log("Отправляем запрос в Google Search...");
-
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      tools: [{ googleSearchRetrieval: {} } as any],
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENROUTER_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://vegoil-app.vercel.app", // Обязательно для OpenRouter
+        "X-Title": "VegOil App"
+      },
+      body: JSON.stringify({
+        model: "perplexity/llama-3.1-sonar-small-online", 
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" }
+      })
     });
 
-    const text = result.response.text().replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(text);
+    const resData = await response.json();
+    
+    if (!resData.choices) {
+        console.error("OpenRouter Error:", resData);
+        throw new Error("Invalid response from OpenRouter");
+    }
+
+    const content = resData.choices[0].message.content;
+    const parsed = JSON.parse(content);
 
     return { 
       data: parsed.prices || [], 
-      sources: [{ title: "Bursa Malaysia (Live)", uri: "https://google.com" }], 
+      sources: [{ title: "Perplexity Online Search", uri: "https://www.perplexity.ai" }], 
       isFallback: false 
     };
-  } catch (e) {
-    console.error("Ошибка при получении данных:", e);
+  } catch (error) {
+    console.error("Fetch failed:", error);
     return { data: [], sources: [], isFallback: true };
   }
 };
 
-// Заглушка для отчета, чтобы App.tsx не ругался
-export const fetchWeeklyMarketReport = async () => {
-    return { report: null, sources: [] };
+// Заглушка для еженедельного отчета, чтобы не падал билд
+export const fetchWeeklyMarketReport = async (): Promise<{ report: MarketReport | null, sources: GroundingSource[] }> => {
+  return { report: null, sources: [] };
 };
