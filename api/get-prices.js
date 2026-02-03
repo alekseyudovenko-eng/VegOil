@@ -1,43 +1,69 @@
 export default async function handler(req, res) {
-  const GROQ_KEY = process.env.VITE_GROQ_API_KEY;
+  const { type, timeframe = '1M' } = req.query;
   const TAVILY_KEY = process.env.TAVILY_API_KEY;
+  const GROQ_KEY = process.env.VITE_GROQ_API_KEY;
 
   try {
-    // 1. Поиск свежих данных по твоим регионам
+    // 1. ПОЛУЧАЕМ ДАННЫЕ (Через Tavily Search для актуальности)
     const searchRes = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        query: "Vegetable oils market prices news Jan 29 2026 Europe, Russia, Ukraine, Central Asia, Caucasus. Palm, Sunflower, Soybean, Rapeseed, Margarine, Crude Oil.",
-        search_depth: "basic"
+        query: `FCPO palm oil prices historical data and vegetable oil market news Jan 2026`,
+        search_depth: "advanced",
+        include_answer: true
       })
     });
     const searchData = await searchRes.json();
-    const context = (searchData.results || []).map(r => r.content).join("\n").slice(0, 3000);
+    const context = (searchData.results || []).map(r => r.content).join("\n");
+    const sources = (searchData.results || []).map(r => ({ title: r.title, uri: r.url }));
 
-    // 2. Генерация отчета через Groq
-    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: "You are a professional market analyst. Return ONLY JSON." },
-          { role: "user", content: `Context: ${context}\n\nDate: Jan 29, 2026. Regions: Europe, CIS, Caucasus. Products: Palm, Soybean, Sunflower, Rapeseed, Margarine, Crude oil.
-            Provide: 
-            1. executive_summary (2 sentences)
-            2. top_news (object with news for each oil)
-            3. regional_analysis (array of 3 objects: region, update)
-            4. trends (object: product -> Bullish/Bearish)` }
-        ],
-        response_format: { type: "json_object" }
-      })
-    });
+    // 2. ОБРАБАТЫВАЕМ ЗАПРОС ЧЕРЕЗ GROQ (Llama 3.3 70B работает как Gemini)
+    if (type === 'chart') {
+      const groqChartRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{
+            role: "system",
+            content: "Generate JSON: { \"prices\": [{ \"date\": \"ISO_DATE\", \"open\": num, \"high\": num, \"low\": num, \"close\": num }] } for FCPO based on context."
+          }, {
+            role: "user",
+            content: `Create 30 daily price points for FCPO ending Feb 3, 2026. Trend based on: ${context}`
+          }],
+          response_format: { type: "json_object" }
+        })
+      });
+      const chartJson = await groqChartRes.json();
+      const parsed = JSON.parse(chartJson.choices[0].message.content);
+      return res.status(200).json({ data: parsed.prices, sources: sources.slice(0, 3), isFallback: false });
+    }
 
-    const gData = await groqRes.json();
-    res.status(200).json(JSON.parse(gData.choices[0].message.content));
-  } catch (e) {
-    res.status(200).json({ executive_summary: "Ошибка: " + e.message, top_news: {}, regional_analysis: [], trends: {} });
+    if (type === 'report') {
+      const groqReportRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{
+            role: "system",
+            content: "You are a market analyst. Return ONLY JSON matching the provided schema."
+          }, {
+            role: "user",
+            content: `Context: ${context}. Generate a report for Feb 3, 2026. Use schema: { "summary": "", "topNews": [{commodity, headline, content}], "priceTrends": [{commodity, trend, details}], "regionalHighlights": [{region, events}], "tradeTable": [{country, commodity, volume, volumeType, status}], "policyUpdates": [{country, update}] }`
+          }],
+          response_format: { type: "json_object" }
+        })
+      });
+      const reportJson = await groqReportRes.json();
+      const report = JSON.parse(reportJson.choices[0].message.content);
+      return res.status(200).json({ report, sources: sources.slice(0, 6), isFallback: false });
+    }
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
   }
 }
