@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { PriceChart } from './components/PriceChart';
+import PriceChart from './components/PriceChart';
 import { MarketReport } from './components/MarketReport';
 import { fetchRealtimePriceData, fetchWeeklyMarketReport } from './services/priceService';
 
