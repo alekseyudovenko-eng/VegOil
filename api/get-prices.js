@@ -1,3 +1,16 @@
+// Внутри api/get-prices.js
+const prompt = `
+CONTEXT FROM GOOGLE SEARCH/TAVILY:
+${context}
+
+STRICT INSTRUCTIONS:
+1. Use ONLY the information provided in the context above. 
+2. If the context doesn't contain specific prices for Feb 2026, use the latest available real prices from the text.
+3. DO NOT hallucinate. If data is missing, use "N/A".
+4. For the "tradeTable", extract real volumes and status from news.
+5. Generate 20-30 data points for the chart that reflect the actual price movement mentioned in the news.
+`;
+
 export default async function handler(req, res) {
   const { type } = req.query;
   const TAVILY_KEY = process.env.TAVILY_API_KEY;
