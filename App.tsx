@@ -1,95 +1,45 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 
 function App() {
-  const [data, setData] = useState<any>(null);
+  const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/get-prices');
-      const result = await response.json();
-      setData(result);
-    } catch (e) {
-      console.error("Fetch error:", e);
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    fetch('/api/get-prices')
+      .then(res => res.json()) // Мы теперь ВСЕГДА шлем JSON из API, даже при ошибке
+      .then(data => {
+        setReport(data);
+        setLoading(false);
+      })
+      .catch(e => {
+        setReport({ summary: "Критическая ошибка фронтенда: " + e.message });
+        setLoading(false);
+      });
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
-
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="text-center animate-pulse">
-        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Gathering Intelligence...</p>
-        <p className="text-xs text-slate-300 mt-2">Europe • CIS • Central Asia</p>
-      </div>
-    </div>
-  );
-
   return (
-    <div className="min-h-screen bg-[#f8fafc] p-4 md:p-8 text-slate-900 font-sans">
-      <div className="max-w-5xl mx-auto space-y-6">
-        
-        <header className="flex justify-between items-center mb-10">
-          <div>
-            <h1 className="text-xl font-black uppercase tracking-tighter">Market Intelligence</h1>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Vegetable Oils & Fats • Jan 29, 2026</p>
-          </div>
-          <button onClick={loadData} className="p-2 bg-white border rounded-full shadow-sm hover:bg-slate-50 transition-colors">🔄</button>
-        </header>
-
-        {/* Executive Summary */}
-        <section className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
-          <p className="text-xl font-bold text-slate-800 leading-tight">
-            {data?.executive_summary}
+    <div style={{ padding: '30px', fontFamily: 'sans-serif', backgroundColor: '#f4f4f4', minHeight: '100vh' }}>
+      <h1 style={{ color: '#333' }}>Market Intelligence Report</h1>
+      
+      {loading ? (
+        <p>Связываюсь с сервером Vercel...</p>
+      ) : (
+        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
+          <h2 style={{ fontSize: '14px', color: '#888', textTransform: 'uppercase' }}>Current Analysis:</h2>
+          <p style={{ fontSize: '18px', fontWeight: 'bold', lineHeight: '1.4' }}>
+            {report?.summary || "Нет данных в ответе"}
           </p>
-        </section>
-
-        {/* Top News Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {data?.top_news && Object.entries(data.top_news).map(([product, news]: any) => (
-            <div key={product} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-              <h3 className="text-[9px] font-black text-blue-500 uppercase mb-2 tracking-widest">{product}</h3>
-              <p className="text-xs font-medium text-slate-600 leading-normal">{news}</p>
-              <div className="mt-4 pt-3 border-t border-slate-50 flex justify-between items-center">
-                <span className={`text-[9px] font-black uppercase ${data.trends?.[product] === 'Bullish' ? 'text-green-600' : 'text-red-600'}`}>
-                  {data.trends?.[product] || 'Neutral'}
-                </span>
-              </div>
-            </div>
-          ))}
+          
+          {/* Эта часть покажет нам все остальные данные, если они придут */}
+          <pre style={{ fontSize: '10px', background: '#eee', padding: '10px', marginTop: '20px', overflow: 'auto' }}>
+            {JSON.stringify(report, null, 2)}
+          </pre>
         </div>
-
-        {/* Regional Updates */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <section className="bg-slate-900 text-white p-8 rounded-[2.5rem]">
-            <h2 className="text-sm font-black mb-6 uppercase tracking-widest text-yellow-500">Regional Intelligence</h2>
-            <div className="space-y-6">
-              {data?.regional_updates?.map((reg: any, i: number) => (
-                <div key={i} className="border-l border-white/20 pl-4">
-                  <h4 className="text-[10px] font-bold text-white uppercase mb-1">{reg.region}</h4>
-                  <p className="text-xs opacity-70 leading-relaxed">{reg.update}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="bg-white p-8 rounded-[2.5rem] border border-slate-200">
-            <h2 className="text-sm font-black mb-4 uppercase tracking-widest">Market Scope</h2>
-            <ul className="text-xs text-slate-500 space-y-2">
-              <li className="flex items-center gap-2">🟢 EU-27 Market Analysis</li>
-              <li className="flex items-center gap-2">🟢 Russia & Ukraine Export Data</li>
-              <li className="flex items-center gap-2">🟢 Central Asia Logistics</li>
-              <li className="flex items-center gap-2">🟢 Caucasus Regional Trends</li>
-            </ul>
-            <div className="mt-8 p-4 bg-slate-50 rounded-2xl text-[10px] text-slate-400 leading-relaxed">
-              Report generated on 2026-01-29 using real-time search via Tavily & Llama 3.3.
-            </div>
-          </section>
-        </div>
-      </div>
+      )}
+      
+      <button onClick={() => window.location.reload()} style={{ marginTop: '20px', padding: '10px 20px', cursor: 'pointer' }}>
+        Обновить данные
+      </button>
     </div>
   );
 }
