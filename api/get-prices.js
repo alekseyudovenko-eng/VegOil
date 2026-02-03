@@ -2,7 +2,6 @@ export default async function handler(req, res) {
   const TAVILY_KEY = process.env.TAVILY_API_KEY;
   const GROQ_KEY = process.env.VITE_GROQ_API_KEY || process.env.GROQ_API_KEY;
 
-  // Расчет дат: строго (сегодня - 8) по (сегодня - 1)
   const today = new Date();
   const end = new Date(today);
   end.setDate(today.getDate() - 1);
@@ -19,15 +18,16 @@ export default async function handler(req, res) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        query: `palm oil FCPO prices news Malaysia Indonesia India ${period}`,
+        // FULL COMMODITY LIST IN QUERY
+        query: `market prices and news for FCPO, palm oil, Sunflower oil, Rapeseed oil, Soybean oil, Cottonseed oil, Margarine, and Crude oil ${period}`,
         search_depth: "advanced",
-        max_results: 6,
-        days: 7 // Встроенный фильтр Tavily на свежесть
+        max_results: 15, 
+        days: 7
       })
     });
     
     const sData = await search.json();
-    const context = sData.results?.map(r => `[Source Date: ${r.published_date || 'Recent'}] ${r.content}`).join("\n\n");
+    const context = sData.results?.map(r => r.content).join("\n\n");
 
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -37,25 +37,32 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `You are a strict Commodity Analyst. Today is ${today.toISOString().split('T')[0]}.
-            CRITICAL RULES:
-            1. Report ONLY on events between ${startStr} and ${endStr}.
-            2. DO NOT invent facts. 
-            3. DO NOT use data older than ${startStr} (e.g., no 2021/2024 news).
-            4. If no specific news for this exact week is found, state: "No major market developments reported for the specified period."
-            5. Language: English.` 
+            content: `You are a Senior Commodity Analyst. Today is ${today.toISOString().split('T')[0]}.
+            STRICT FORMATTING RULES:
+            1. Language: ENGLISH ONLY.
+            2. NO numbering (1, 2, 3). NO symbols like '*' or '-' at the start of headers.
+            3. Use '##' for main section headers.
+            4. Use BOLD text for prices, percentages, and key market figures.
+            5. Report ONLY on events from ${startStr} to ${endStr}.
+            6. If no specific news is found for a commodity, state: "No significant developments for [Commodity] during this period."` 
           },
           { 
             role: "user", 
-            content: `Analyze this context: ${context}. Create report: ## Executive Summary, ## Top News, ## Regulatory, ## Market Trend Analysis, ## Trade Flows.` 
+            content: `Context: ${context}. 
+            Structure:
+            ## Executive Summary
+            ## Top News by Commodity (Sections for: FCPO, Palm Oil, Sunflower Oil, Rapeseed Oil, Soybean Oil, Cottonseed Oil, Margarine, Crude Oil)
+            ## Regulatory & Policy Updates
+            ## Market Trend Analysis
+            ## Trade Flows & Production` 
           }
         ],
-        temperature: 0.0 // Минимальный риск выдумок
+        temperature: 0.0
       })
     });
 
     if (groqRes.status === 429) {
-      return res.status(200).json({ report: "### API Limit\nPlease wait 60s for cool down." });
+      return res.status(200).json({ report: "### API Limit\nRate limit active. Please wait 60 seconds." });
     }
 
     const gData = await groqRes.json();
