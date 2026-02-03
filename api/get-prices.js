@@ -18,16 +18,15 @@ export default async function handler(req, res) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        // FULL COMMODITY LIST IN QUERY
-        query: `market prices and news for FCPO, palm oil, Sunflower oil, Rapeseed oil, Soybean oil, Cottonseed oil, Margarine, and Crude oil ${period}`,
+        query: `prices and news for FCPO, palm oil, Sunflower oil, Rapeseed oil, Soybean oil, Cottonseed oil, Margarine, and Crude oil ${period}`,
         search_depth: "advanced",
-        max_results: 15, 
+        max_results: 12,
         days: 7
       })
     });
     
     const sData = await search.json();
-    const context = sData.results?.map(r => r.content).join("\n\n");
+    const context = sData.results?.map(r => r.content).join("\n\n") || "No news found.";
 
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -37,38 +36,29 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `You are a Senior Commodity Analyst. Today is ${today.toISOString().split('T')[0]}.
-            STRICT FORMATTING RULES:
-            1. Language: ENGLISH ONLY.
-            2. NO numbering (1, 2, 3). NO symbols like '*' or '-' at the start of headers.
-            3. Use '##' for main section headers.
-            4. Use BOLD text for prices, percentages, and key market figures.
-            5. Report ONLY on events from ${startStr} to ${endStr}.
-            6. If no specific news is found for a commodity, state: "No significant developments for [Commodity] during this period."` 
+            content: `Senior Analyst. Period: ${period}. English only. No numbering. Use ## for headers. Bold key figures.` 
           },
           { 
             role: "user", 
-            content: `Context: ${context}. 
-            Structure:
-            ## Executive Summary
-            ## Top News by Commodity (Sections for: FCPO, Palm Oil, Sunflower Oil, Rapeseed Oil, Soybean Oil, Cottonseed Oil, Margarine, Crude Oil)
-            ## Regulatory & Policy Updates
-            ## Market Trend Analysis
-            ## Trade Flows & Production` 
+            content: `Context: ${context}. Structure: ## Executive Summary, ## Top News by Commodity (FCPO, Palm Oil, Sunflower Oil, Rapeseed Oil, Soybean Oil, Cottonseed Oil, Margarine, Crude Oil), ## Regulatory & Policy Updates, ## Market Trend Analysis, ## Trade Flows & Production.` 
           }
         ],
         temperature: 0.0
       })
     });
 
-    if (groqRes.status === 429) {
-      return res.status(200).json({ report: "### API Limit\nRate limit active. Please wait 60 seconds." });
+    const gData = await groqRes.json();
+
+    // FAILSAFE: Check if gData has the expected structure
+    if (gData && gData.choices && gData.choices[0] && gData.choices[0].message) {
+      res.status(200).json({ report: gData.choices[0].message.content });
+    } else {
+      // If Groq returns an error object instead of a choice
+      const errorMsg = gData.error?.message || "Unknown API Error";
+      res.status(200).json({ report: `### Technical Notice\n\nGroq API is currently busy: **${errorMsg}**. \n\nPlease wait 60 seconds and refresh.` });
     }
 
-    const gData = await groqRes.json();
-    res.status(200).json({ report: gData.choices[0].message.content });
-
   } catch (e) {
-    res.status(200).json({ report: `### Error\n${e.message}` });
+    res.status(200).json({ report: `### Connection Error\n${e.message}` });
   }
 }
