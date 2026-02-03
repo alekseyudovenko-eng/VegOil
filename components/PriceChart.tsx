@@ -1,49 +1,66 @@
 import React from 'react';
 import {
   ResponsiveContainer,
-  ComposedChart,
+  LineChart,
   XAxis,
   YAxis,
   Tooltip,
   CartesianGrid,
   Line,
-  Area,
 } from 'recharts';
 
 const PriceChart = ({ data }: { data: any[] }) => {
-  if (!data || data.length === 0) {
-    return <div className="h-full flex items-center justify-center text-gray-400">No data</div>;
+  // Если данных нет или это не массив - не ломаем приложение
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center text-gray-400 border-2 border-dashed rounded-xl">
+        Ожидание рыночных данных...
+      </div>
+    );
   }
 
-  // Фильтруем значения для корректного Domain
-  const vals = data.flatMap(d => [d.open, d.high, d.low, d.close]).filter(v => typeof v === 'number');
-  const minV = Math.min(...vals) * 0.99;
-  const maxV = Math.max(...vals) * 1.01;
+  // Очистка данных: убираем битые записи и приводим к числам
+  const cleanData = data
+    .map(d => ({
+      ...d,
+      close: parseFloat(d.close),
+      // Форматируем дату, чтобы не было гигантских строк
+      displayDate: d.date ? d.date.split('-').slice(1).join('/') : ''
+    }))
+    .filter(d => !isNaN(d.close));
+
+  const prices = cleanData.map(d => d.close);
+  const minP = Math.min(...prices) * 0.98;
+  const maxP = Math.max(...prices) * 1.02;
 
   return (
-    /* minWidth: 0 решает проблему в некоторых браузерах */
-    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={400}>
-      <ComposedChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={cleanData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-        <XAxis dataKey="date" hide={false} tick={{fontSize: 10}} stroke="#94A3B8" />
+        <XAxis 
+          dataKey="displayDate" 
+          tick={{fontSize: 12}} 
+          axisLine={false}
+          tickLine={false}
+        />
         <YAxis 
-          domain={[minV, maxV]} 
-          orientation="right" 
-          tick={{fontSize: 10}} 
-          stroke="#94A3B8" 
-          width={40}
+          domain={[minP, maxP]} 
+          hide={true} 
         />
-        <Tooltip />
-        <Area type="monotone" dataKey="close" stroke="none" fill="#2962FF" fillOpacity={0.1} />
+        <Tooltip 
+          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+          labelStyle={{ color: '#64748b' }}
+        />
         <Line 
-          type="monotone" 
+          type="linear" // Убираем monotone (сглаживание), оно часто дает ошибку "arc flag"
           dataKey="close" 
-          stroke="#2962FF" 
-          strokeWidth={2} 
-          dot={{ r: 4 }} 
-          activeDot={{ r: 6 }} 
+          stroke="#2563eb" 
+          strokeWidth={3} 
+          dot={{ r: 4, fill: '#2563eb', strokeWidth: 0 }} 
+          activeDot={{ r: 6 }}
+          animationDuration={500}
         />
-      </ComposedChart>
+      </LineChart>
     </ResponsiveContainer>
   );
 };
