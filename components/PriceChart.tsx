@@ -8,80 +8,40 @@ import {
   CartesianGrid,
   Line,
   Area,
-  Legend,
 } from 'recharts';
-import type { PriceData } from '../types';
 
-interface PriceChartProps {
-  data: PriceData[]; // Принимаем базовый тип
-  comparisonLabel?: string | null;
-}
-
-const CustomTooltip = ({ active, payload, label, comparisonLabel }: any) => {
-  if (active && payload && payload.length) {
-    const item = payload[0].payload;
-    const dateObj = new Date(label);
-    
-    return (
-      <div className="bg-white p-3 rounded-lg border border-gray-300 shadow-lg text-sm">
-        <p className="text-gray-600 font-semibold mb-2">
-          {isNaN(dateObj.getTime()) ? label : dateObj.toLocaleDateString()}
-        </p>
-        <div className="font-mono text-gray-800 space-y-1">
-          <p>Open: <span className="font-bold">{item.open?.toFixed(2) || '0.00'}</span></p>
-          <p>Close: <span className="font-bold text-blue-600">{item.close?.toFixed(2) || '0.00'}</span></p>
-          <p>High: <span className="font-bold text-green-600">{item.high?.toFixed(2) || '0.00'}</span></p>
-          <p>Low: <span className="font-bold text-red-600">{item.low?.toFixed(2) || '0.00'}</span></p>
-        </div>
-      </div>
-    );
-  }
-  return null;
-};
-
-const PriceChart: React.FC<PriceChartProps> = ({ data, comparisonLabel }) => {
+const PriceChart = ({ data }: { data: any[] }) => {
   if (!data || data.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full text-gray-400 italic">
-        No price data available.
-      </div>
-    );
+    return <div className="h-full flex items-center justify-center text-gray-400">No data</div>;
   }
 
-  // Безопасный расчет диапазона цен для шкалы Y
-  const allValues = data.flatMap(d => [d.open, d.close, d.high, d.low].filter(v => v != null));
-  const minVal = Math.min(...allValues);
-  const maxVal = Math.max(...allValues);
-  const domain = [minVal * 0.98, maxVal * 1.02];
+  // Фильтруем значения для корректного Domain
+  const vals = data.flatMap(d => [d.open, d.high, d.low, d.close]).filter(v => typeof v === 'number');
+  const minV = Math.min(...vals) * 0.99;
+  const maxV = Math.max(...vals) * 1.01;
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <ComposedChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-        <defs>
-          <linearGradient id="colorClose" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#2962FF" stopOpacity={0.1}/>
-            <stop offset="95%" stopColor="#2962FF" stopOpacity={0}/>
-          </linearGradient>
-        </defs>
+    /* minWidth: 0 решает проблему в некоторых браузерах */
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={400}>
+      <ComposedChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-        <XAxis 
-          dataKey="date" 
-          hide={true} // Временно скроем для стабильности
-        />
+        <XAxis dataKey="date" hide={false} tick={{fontSize: 10}} stroke="#94A3B8" />
         <YAxis 
-          domain={domain} 
+          domain={[minV, maxV]} 
           orientation="right" 
           tick={{fontSize: 10}} 
-          stroke="#94A3B8"
+          stroke="#94A3B8" 
+          width={40}
         />
-        <Tooltip content={<CustomTooltip comparisonLabel={comparisonLabel} />} />
-        <Area type="monotone" dataKey="close" stroke="none" fill="url(#colorClose)" />
+        <Tooltip />
+        <Area type="monotone" dataKey="close" stroke="none" fill="#2962FF" fillOpacity={0.1} />
         <Line 
           type="monotone" 
           dataKey="close" 
           stroke="#2962FF" 
           strokeWidth={2} 
-          dot={false} 
+          dot={{ r: 4 }} 
+          activeDot={{ r: 6 }} 
         />
       </ComposedChart>
     </ResponsiveContainer>
