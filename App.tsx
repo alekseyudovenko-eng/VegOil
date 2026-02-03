@@ -8,15 +8,22 @@ const App: React.FC = () => {
     fetch('/api/get-prices')
       .then(res => res.json())
       .then(data => {
-        // Парсим сырой текст отчета на разделы по заголовкам ##
         const rawText = data.report || '';
+        
+        // Разбиваем по решеткам, но очищаем их из заголовков сразу
         const sections = rawText.split('##').filter(Boolean).map(s => {
           const lines = s.trim().split('\n');
+          // Очищаем заголовок от возможных остаточных символов
+          const cleanTitle = lines[0].replace(/[#*]/g, '').trim();
+          // Очищаем весь текст секции от звездочек и решеток
+          const cleanContent = lines.slice(1).join('\n').replace(/[#*]/g, '').trim();
+          
           return {
-            title: lines[0].trim(),
-            content: lines.slice(1).join('\n').trim()
+            title: cleanTitle,
+            content: cleanContent
           };
         });
+        
         setReportData(sections);
         setLoading(false);
       })
@@ -24,50 +31,49 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#050505] text-slate-300 p-4 md:p-8 font-sans selection:bg-emerald-500/30">
+    <div className="min-h-screen bg-[#050505] text-slate-300 p-4 md:p-8 font-sans selection:bg-emerald-500/30 text-left">
       <div className="max-w-5xl mx-auto space-y-8">
         
         {/* HEADER */}
         <div className="flex justify-between items-end border-b border-white/5 pb-6">
           <div>
-            <h1 className="text-4xl font-bold text-white tracking-tighter">TERMINAL<span className="text-emerald-500">.</span></h1>
-            <p className="text-slate-500 text-xs mt-1 uppercase tracking-[0.4em]">Global Commodity Intelligence</p>
+            <h1 className="text-4xl font-bold text-white tracking-tighter uppercase">Terminal<span className="text-emerald-500">.</span></h1>
+            <p className="text-slate-500 text-[10px] mt-1 uppercase tracking-[0.5em]">Global Commodity Intelligence</p>
           </div>
           <div className="text-right hidden md:block">
             <p className="text-[10px] text-slate-600 uppercase tracking-widest">System Status</p>
-            <p className="text-xs text-emerald-400 font-mono flex items-center gap-2">
+            <p className="text-xs text-emerald-400 font-mono flex items-center gap-2 justify-end">
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span> Live Data Feed
             </p>
           </div>
         </div>
 
         {/* CHART PLACEHOLDER */}
-        <div className="relative group overflow-hidden bg-[#0d0d0d] border border-white/5 rounded-2xl p-12 flex items-center justify-center min-h-[300px] transition-all hover:border-emerald-500/20">
+        <div className="relative group overflow-hidden bg-[#0d0d0d] border border-white/5 rounded-2xl p-12 flex items-center justify-center min-h-[350px] transition-all hover:border-emerald-500/20 shadow-inner">
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <div className="text-center relative z-10">
-            <div className="text-slate-700 text-sm font-mono mb-2">MOD-ID: VISUAL_DATA_01</div>
-            <h2 className="text-lg font-medium text-slate-400 uppercase tracking-widest">Chart Module Initializing...</h2>
+            <div className="text-slate-800 text-[10px] font-mono mb-3 tracking-[0.3em]">MNTR_ID: VIZ_DATA_2026</div>
+            <h2 className="text-sm font-light text-slate-500 uppercase tracking-[0.6em] italic">Chart Module Initializing</h2>
           </div>
         </div>
 
         {/* ANALYTICS REPORT */}
-        <div className="space-y-6">
+        <div className="space-y-8">
           {loading ? (
-            <div className="flex flex-col items-center py-20 space-y-4">
-              <div className="w-12 h-12 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin"></div>
-              <p className="text-slate-500 animate-pulse font-mono text-sm">Processing Neural Analysis...</p>
+            <div className="flex flex-col items-center py-32 space-y-6">
+              <div className="w-10 h-10 border border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin"></div>
+              <p className="text-slate-600 font-mono text-[10px] uppercase tracking-widest">Processing Market Context...</p>
             </div>
           ) : (
             reportData.map((section, idx) => (
-              <div key={idx} className="bg-[#0d0d0d] border border-white/5 rounded-2xl overflow-hidden transition-all hover:bg-[#111]">
-                <div className="px-8 py-4 bg-white/[0.02] border-b border-white/5 flex justify-between items-center">
-                  <h3 className="text-emerald-400 font-semibold text-sm uppercase tracking-wider">{section.title}</h3>
-                  <span className="text-[10px] text-slate-600 font-mono">0{idx + 1}</span>
+              <div key={idx} className="bg-[#0d0d0d] border border-white/5 rounded-2xl overflow-hidden transition-all hover:bg-[#0f0f0f] hover:border-white/10 shadow-xl">
+                <div className="px-8 py-5 bg-white/[0.01] border-b border-white/5 flex justify-between items-center">
+                  <h3 className="text-emerald-500 font-bold text-xs uppercase tracking-[0.2em]">{section.title}</h3>
+                  <span className="text-[10px] text-slate-700 font-mono tracking-tighter">SEC_0{idx + 1}</span>
                 </div>
-                <div className="p-8">
-                  <div className="text-slate-300 leading-relaxed text-base space-y-4 font-light whitespace-pre-wrap">
-                    {/* Убираем лишние символы при рендеринге контента */}
-                    {section.content.replace(/\*\*/g, '').replace(/\*/g, '')}
+                <div className="p-10">
+                  <div className="text-slate-300 leading-[1.8] text-lg font-light whitespace-pre-wrap">
+                    {section.content}
                   </div>
                 </div>
               </div>
@@ -76,9 +82,9 @@ const App: React.FC = () => {
         </div>
 
         {/* FOOTER */}
-        <footer className="pt-12 pb-8 text-center border-t border-white/5">
-          <p className="text-[10px] text-slate-600 uppercase tracking-widest">
-            Data provided by Tavily & Groq Llama 3.1 • © 2026 Analytics Terminal
+        <footer className="pt-16 pb-12 text-center">
+          <p className="text-[9px] text-slate-700 uppercase tracking-[1em] opacity-50">
+            End of Transmission • Feb 2026
           </p>
         </footer>
       </div>
