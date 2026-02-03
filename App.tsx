@@ -1,72 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
-function App() {
-  const [report, setReport] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+const App: React.FC = () => {
+  const [report, setReport] = useState<string>('Loading Market Intelligence...');
 
   useEffect(() => {
-    async function loadReport() {
-      try {
-        const res = await fetch('/api/get-prices');
-        if (!res.ok) throw new Error('API Error');
-        const data = await res.json();
-        setReport(data.report || 'Отчет пуст');
-      } catch (err) {
-        setReport('Ошибка загрузки отчета. Проверьте логи API.');
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadReport();
+    fetch('/api/get-prices')
+      .then(res => res.json())
+      .then(data => setReport(data.report))
+      .catch(() => setReport('Error loading report.'));
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8 font-sans">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-[#0a0a0a] text-gray-100 p-6 font-sans">
+      <div className="max-w-6xl mx-auto space-y-6">
         
-        <header className="border-b border-gray-800 pb-6">
-          <h1 className="text-3xl font-black uppercase tracking-tighter">
-            VegOil <span className="text-blue-500">Intelligence</span>
-          </h1>
-        </header>
-
-        <main className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* ГРАФИК-ЗАГЛУШКА */}
-          <div className="lg:col-span-2 bg-gray-800 rounded-3xl border-2 border-dashed border-gray-700 h-[500px] flex items-center justify-center">
-            <div className="text-center p-6">
-              <h3 className="text-xl font-bold text-gray-500 uppercase tracking-widest">
-                Здесь скоро появится интерактивный график
-              </h3>
-              <p className="text-gray-600 mt-2">Работа над данными возобновится завтра</p>
-            </div>
-          </div>
-
-          {/* ОТЧЕТ */}
-          <div className="lg:col-span-1 bg-gray-800 rounded-3xl p-6 shadow-2xl border border-gray-700 flex flex-col">
-            <h2 className="text-lg font-bold mb-4 text-blue-400 uppercase tracking-tight">
-              Market Intelligence Report
+        {/* 1. ГРАФИК ТЕПЕРЬ В САМОМ ВЕРХУ */}
+        <div className="bg-[#111] border border-white/10 rounded-xl p-8 flex items-center justify-center min-h-[300px]">
+          <div className="text-center">
+            <div className="text-4xl mb-4">📈</div>
+            <h2 className="text-xl font-light tracking-widest uppercase text-white/40">
+              Скоро здесь появится график
             </h2>
-            
-            <div className="flex-1 overflow-y-auto">
-              {isLoading ? (
-                <div className="space-y-4">
-                  <div className="h-4 bg-gray-700 rounded animate-pulse w-3/4"></div>
-                  <div className="h-4 bg-gray-700 rounded animate-pulse"></div>
-                  <div className="h-4 bg-gray-700 rounded animate-pulse w-5/6"></div>
-                </div>
-              ) : (
-                <pre className="whitespace-pre-wrap font-sans text-sm text-gray-300 leading-relaxed">
-                  {report}
-                </pre>
-              )}
+          </div>
+        </div>
+
+        {/* 2. ОТЧЕТ СТРОГО ПОД ГРАФИКОМ */}
+        <div className="bg-[#111] border border-white/10 rounded-xl p-8 shadow-2xl">
+          <h1 className="text-2xl font-bold mb-6 border-b border-white/10 pb-4 text-emerald-500">
+            Market Intelligence Report
+          </h1>
+          <div className="prose prose-invert max-w-none">
+            <div className="whitespace-pre-wrap leading-relaxed text-gray-300">
+              {report}
             </div>
           </div>
+        </div>
 
-        </main>
       </div>
     </div>
   );
-}
+};
 
 export default App;
