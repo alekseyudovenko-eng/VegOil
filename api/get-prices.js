@@ -9,12 +9,13 @@ export default async function handler(req, res) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        query: "palm oil fcpo price news last 7 days",
-        max_results: 5
+        // Добавили жесткий фильтр текущего месяца и года
+        query: "palm oil FCPO price news February 2026 Malaysia Indonesia India", 
+        search_depth: "advanced",
+        max_results: 10,
+        days: 7 // СТРОГО последние 7 дней
       })
     });
-    const sData = await search.json();
-    const context = sData.results?.map(r => r.content).join("\n\n");
 
     // 2. Запрос к Groq
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
