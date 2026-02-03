@@ -18,9 +18,9 @@ export default async function handler(req, res) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        query: `prices and news for FCPO, palm oil, Sunflower oil, Rapeseed oil, Soybean oil, Cottonseed oil, Margarine, and Crude oil ${period}`,
+        query: `prices news FCPO palm oil Sunflower Rapeseed Soybean Cottonseed oil Margarine Crude oil ${period}`,
         search_depth: "advanced",
-        max_results: 12,
+        max_results: 8, // Снизил с 15 до 8, чтобы не вылетать за лимит 6000 токенов
         days: 7
       })
     });
