@@ -8,16 +8,16 @@ function App() {
   const [marketReport, setMarketReport] = useState<any>(null);
   const [sources, setSources] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Запрашиваем данные через наш API
       const res = await fetchWeeklyMarketReport();
+      console.log("API Response:", res); // Посмотри это в консоли!
+
+      // Проверяем все возможные места, где могут лежать данные
+      const actualData = res.data || (res.report && res.report.data) || [];
       
-      if (res.data && res.data.length > 0) {
-        setPriceData(res.data);
-      }
+      setPriceData(actualData);
       setMarketReport(res.report || res);
       setSources(res.sources || []);
     } catch (err) {
