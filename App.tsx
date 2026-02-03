@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import PriceChart from './components/PriceChart';
-import { MarketReport } from './components/MarketReport';
-import { fetchRealtimePriceData, fetchWeeklyMarketReport } from './services/priceService';
+import PriceChart from './components/PriceChart'; // БЕЗ скобок (т.к. export default)
+import MarketReport from './components/MarketReport'; // БЕЗ скобок (т.к. export default)
+import { fetchRealtimePriceData, fetchWeeklyMarketReport } from './services/priceService'; // В СКОБКАХ (т.к. именованные экспорты)
 
 function App() {
   const [activeTimeframe, setActiveTimeframe] = useState<any>('1M');
