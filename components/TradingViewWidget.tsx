@@ -11,8 +11,8 @@ const TradingViewWidget = () => {
       script.async = true;
       script.innerHTML = JSON.stringify({
         "autosize": true,
-        "symbol": "WWOPI",
-        "interval": "D",
+        "symbol": "PPOILUSDM",
+        "interval": "M",
         "timezone": "Etc/UTC",
         "theme": "light",
         "style": "1",
