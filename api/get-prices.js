@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   const period = `from ${startStr} to ${endStr}`;
 
   try {
-    // 1. ПОИСК (Улучшенный запрос для точности)
+    // 1. ПОИСК (Запрос сфокусирован на 2026 годе)
     const search = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     const sData = await search.json();
     const context = sData.results?.map(r => r.content).join("\n\n") || "No data found.";
 
-    // 2. ГЕНЕРАЦИЯ С ЖЕСТКИМ ФИЛЬТРОМ ДАТ
+    // 2. ГЕНЕРАЦИЯ (Сбалансированный фильтр)
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
@@ -38,20 +38,19 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `You are a strict data validation engine. 
-            CURRENT DATE: ${today.toISOString().split('T')[0]}.
-            TARGET WINDOW: Strictly from ${startStr} to ${endStr}.
-
-            MANDATORY PROTOCOL:
-            1. Analyze the publication date of every piece of information.
-            2. If it's dated before ${startStr} or after ${endStr} (e.g. Nov 2025), IGNORE IT.
-            3. Do not report old news. If no fresh data is found, state: "No significant updates in this window."
-            4. Language: English. No numbering. No bold symbols (*). Use ## for headers.` 
+            content: `You are a Senior Commodity Analyst. 
+            Target Period: ${startStr} to ${endStr} (Early February 2026).
+            
+            GUIDELINES:
+            1. Use the provided context to build a report for the CURRENT week. 
+            2. Prioritize recent information from late January and February 2026.
+            3. Discard any information explicitly dated 2024 or 2025.
+            4. Keep it professional. English only. No numbering. No asterisks (*). Use ## for headers.` 
           },
           { 
             role: "user", 
             content: `Context: ${context}. 
-            Create a report for ${period} using exactly these headers:
+            Create the report for ${period} with these exact headers:
             ## Executive Summary
             ## Top News by Commodity
             ## Regulatory & Policy Updates
@@ -59,7 +58,7 @@ export default async function handler(req, res) {
             ## Trade Flows & Production` 
           }
         ],
-        temperature: 0.0
+        temperature: 0.1
       })
     });
 
