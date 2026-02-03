@@ -11,7 +11,7 @@ const TradingViewWidget = () => {
       script.async = true;
       script.innerHTML = JSON.stringify({
         "autosize": true,
-        "symbol": "ECONOMICS:AWWOPI",
+        "symbol": "AWWOPI",
         "interval": "YTD",
         "timezone": "Etc/UTC",
         "theme": "light",
