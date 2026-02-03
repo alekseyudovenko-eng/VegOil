@@ -13,34 +13,46 @@ export default async function handler(req, res) {
   const period = `from ${startStr} to ${endStr}`;
 
   try {
+    // 1. ПОИСК ПО ВСЕМ ТВОИМ ПРОДУКТАМ
     const search = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        query: `prices news FCPO palm oil Sunflower Rapeseed Soybean Cottonseed oil Margarine Crude oil ${period}`,
+        query: `market prices news FCPO, palm oil, Sunflower oil, Rapeseed oil, Soybean oil, Cottonseed oil, Margarine, Crude oil ${period}`,
         search_depth: "advanced",
-        max_results: 8, // Снизил с 15 до 8, чтобы не вылетать за лимит 6000 токенов
+        max_results: 10,
         days: 7
       })
     });
     
     const sData = await search.json();
-    const context = sData.results?.map(r => r.content).join("\n\n") || "No news found.";
+    const context = sData.results?.map(r => r.content).join("\n\n") || "No data found.";
 
+    // 2. ГЕНЕРАЦИЯ ТЕКСТОВОГО ОТЧЕТА (БЕЗ JSON-РЕЖИМА)
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
+      headers: { 
+        "Authorization": `Bearer ${GROQ_KEY}`, 
+        "Content-Type": "application/json" 
+      },
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
         messages: [
           { 
             role: "system", 
-            content: `Senior Analyst. Period: ${period}. English only. No numbering. Use ## for headers. Bold key figures.` 
+            content: `You are a Senior Commodity Analyst. Today is ${today.toISOString().split('T')[0]}.
+            STRICT RULES:
+            1. Language: English only.
+            2. Sections: Use ## for each header. 
+            3. Headers to use: ## Executive Summary, ## Top News by Commodity, ## Regulatory & Policy Updates, ## Market Trend Analysis, ## Trade Flows & Production.
+            4. In 'Top News by Commodity', cover: FCPO, Palm Oil, Sunflower Oil, Rapeseed Oil, Soybean Oil, Cottonseed Oil, Margarine, Crude Oil.
+            5. No numbering. No bold symbols like **. 
+            6. Report only from ${startStr} to ${endStr}.` 
           },
           { 
             role: "user", 
-            content: `Context: ${context}. Structure: ## Executive Summary, ## Top News by Commodity (FCPO, Palm Oil, Sunflower Oil, Rapeseed Oil, Soybean Oil, Cottonseed Oil, Margarine, Crude Oil), ## Regulatory & Policy Updates, ## Market Trend Analysis, ## Trade Flows & Production.` 
+            content: `Analyze this: ${context}. Produce the report.` 
           }
         ],
         temperature: 0.0
@@ -49,16 +61,15 @@ export default async function handler(req, res) {
 
     const gData = await groqRes.json();
 
-    // FAILSAFE: Check if gData has the expected structure
-    if (gData && gData.choices && gData.choices[0] && gData.choices[0].message) {
+    if (gData.choices && gData.choices[0]) {
+      // Отдаем как report, который App.tsx распарсит по ##
       res.status(200).json({ report: gData.choices[0].message.content });
     } else {
-      // If Groq returns an error object instead of a choice
-      const errorMsg = gData.error?.message || "Unknown API Error";
-      res.status(200).json({ report: `### Technical Notice\n\nGroq API is currently busy: **${errorMsg}**. \n\nPlease wait 60 seconds and refresh.` });
+      const errorMsg = gData.error?.message || "API Error";
+      res.status(200).json({ report: `## Technical Notice\nGroq is busy: ${errorMsg}. Please wait 60s.` });
     }
 
   } catch (e) {
-    res.status(200).json({ report: `### Connection Error\n${e.message}` });
+    res.status(200).json({ report: `## Error\n${e.message}` });
   }
 }
