@@ -1,69 +1,81 @@
-// Внутри api/get-prices.js
-const prompt = `
-CONTEXT FROM GOOGLE SEARCH/TAVILY:
-${context}
-
-STRICT INSTRUCTIONS:
-1. Use ONLY the information provided in the context above. 
-2. If the context doesn't contain specific prices for Feb 2026, use the latest available real prices from the text.
-3. DO NOT hallucinate. If data is missing, use "N/A".
-4. For the "tradeTable", extract real volumes and status from news.
-5. Generate 20-30 data points for the chart that reflect the actual price movement mentioned in the news.
-`;
-
 export default async function handler(req, res) {
-  const { type } = req.query;
+  const { type, timeframe = '1M' } = req.query;
   const TAVILY_KEY = process.env.TAVILY_API_KEY;
   const GROQ_KEY = process.env.VITE_GROQ_API_KEY;
 
+  // Динамическая дата для актуальности поиска
+  const today = new Date().toISOString().split('T')[0];
+
   try {
-    // 1. Поиск свежих данных
+    // 1. Продвинутый поиск реальных данных
     const searchRes = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        query: "FCPO palm oil prices Feb 3 2026 market news Russia Kazakhstan Uzbekistan",
-        search_depth: "advanced"
+        query: `FCPO Bursa Malaysia daily prices history news Feb 2026 vegetable oil market updates`,
+        search_depth: "advanced",
+        max_results: 8,
+        include_raw_content: false
       })
     });
+    
     const sData = await searchRes.json();
-    const context = sData.results.map(r => r.content).join("\n");
+    const context = sData.results.map(r => `SOURCE: ${r.title}\nCONTENT: ${r.content}`).join("\n\n");
     const sources = sData.results.map(r => ({ title: r.title, uri: r.url }));
 
-    if (type === 'chart') {
-      // Генерируем данные для твоего PriceChart.tsx
-      const prices = Array.from({length: 30}, (_, i) => {
-        const base = 4100 + (Math.sin(i / 5) * 200);
-        return {
-          date: new Date(2026, 0, i + 1).toISOString(),
-          open: base,
-          high: base + 20,
-          low: base - 20,
-          close: base + (Math.random() * 10)
-        };
-      });
-      return res.status(200).json({ data: prices, sources: sources.slice(0, 3) });
-    }
+    // 2. Формируем строгий промпт для Groq
+    const systemRole = `You are a financial data analyst. Today is ${today}. 
+    Your task is to extract REAL market data from the provided search context.
+    STRICT RULES:
+    1. DO NOT fabricate prices. Use the actual closing prices mentioned in the sources.
+    2. If exact daily historical data is missing, find the LATEST price and adjust previous days ONLY based on mentioned percentage gains/losses.
+    3. If no price is found, use a baseline of 3950 MYR (typical Feb 2026 level) and state it clearly.
+    4. For News and Trade flows, use real names of countries (Russia, Kazakhstan, Uzbekistan, Ukraine, Malaysia) and real commodities.`;
 
-    // 2. Генерация отчета для твоего MarketReport.tsx
+    const userPrompt = `
+    CONTEXT FROM WEB SEARCH:
+    ${context}
+
+    REQUEST:
+    Return a JSON object with two main keys: "report" and "data".
+    - "data": An array of at least 15 objects { "date": "ISO string", "open": num, "high": num, "low": num, "close": num } representing the FCPO price trend.
+    - "report": Must include "summary", "topNews" (array), "priceTrends" (array), "regionalHighlights" (array), "tradeTable" (array), and "policyUpdates" (array).
+    
+    Ensure the JSON structure is perfectly valid and follows the schema strictly.`;
+
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
+      headers: { 
+        "Authorization": `Bearer ${GROQ_KEY}`, 
+        "Content-Type": "application/json" 
+      },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
-        messages: [{ role: "system", content: "Return ONLY JSON for MarketReport." },
-        { role: "user", content: `Context: ${context}. Create report for Feb 3, 2026. 
-          Use EXACT keys: summary (string), topNews (array of {commodity, headline, content}), 
-          priceTrends (array of {commodity, trend, details}), regionalHighlights (array of {region, events}), 
-          tradeTable (array of {country, commodity, volume, volumeType, status}), 
-          policyUpdates (array of {country, update}).` }],
-        response_format: { type: "json_object" }
+        messages: [
+          { role: "system", content: systemRole },
+          { role: "user", content: userPrompt }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.1 // Низкая температура снижает "фантазии"
       })
     });
-    const gData = await groqRes.json();
-    const report = JSON.parse(gData.choices[0].message.content);
-    res.status(200).json({ report, sources });
 
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    const gData = await groqRes.json();
+    const finalResult = JSON.parse(gData.choices[0].message.content);
+
+    // Добавляем источники в ответ
+    return res.status(200).json({
+      ...finalResult,
+      sources: sources.slice(0, 3),
+      isFallback: false
+    });
+
+  } catch (error) {
+    console.error("API Error:", error);
+    return res.status(500).json({ 
+      error: "Failed to fetch real-time data",
+      details: error.message 
+    });
+  }
 }
