@@ -11,23 +11,24 @@ export default async function handler(req) {
   }
 
   try {
-    // 1. Поиск по самому широкому и точному запросу за последние 7 дней
+    // ШАГ 1: Поиск строго по тикеру и за последние 7 дней
+    const searchQuery = "palm oil fcpo market news analysis last 7 days february 2026";
+    
     const searchRes = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        query: "palm oil fcpo news market report last 7 days february 2026",
+        query: searchQuery,
         search_depth: "advanced",
-        max_results: 8,
-        // Оставляем поиск открытым по всему вебу, чтобы собрать максимум реальных цен и новостей
+        max_results: 8
       })
     });
 
     const sData = await searchRes.json();
     const context = sData.results?.map(r => `Source: ${r.url}\nContent: ${r.content}`).join("\n\n");
 
-    // 2. ИИ перерабатывает весь этот массив новостей в твой формат
+    // ШАГ 2: Генерация ПОЛНОЦЕННОГО отчета по твоей структуре
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
@@ -36,19 +37,32 @@ export default async function handler(req) {
         messages: [
           { 
             role: "system", 
-            content: "Ты — профессиональный рыночный аналитик. Твоя задача — извлечь факты за ПОСЛЕДНИЕ 7 ДНЕЙ и составить отчет. Если данные старые — игнорируй их. Язык: Русский." 
+            content: "Ты — старший аналитик рынка Vegetable Oils & Fats. Твоя специализация — FCPO. Используй профессиональный русский язык и финансовую терминологию." 
           },
           { 
             role: "user", 
-            content: `На основе найденных новостей:
+            content: `Используя данные по FCPO за последние 7 дней:
             ${context}
 
-            Сформируй Market Intelligence Report: Vegetable Oils & Fats:
+            Сформируй полноценный 'Market Intelligence Report: Vegetable Oils & Fats' со следующими разделами:
+
             ## Executive Summary
-            ## Top News by Commodity (Palm Oil; Sunflower Oil; Rapeseed Oil; Soybean Oil; Margarine; Crude Oil)
+            (Краткий обзор ситуации на основе динамики FCPO за неделю)
+
+            ## Top News by Commodity
+            * **Palm Oil**: (Детально по FCPO, уровни, объемы)
+            * **Sunflower Oil, Rapeseed Oil, Soybean Oil**: (Как динамика FCPO повлияла на эти масла или новости по ним из контекста)
+            * **Margarine**: (Спрос со стороны пищевой пром-ти на фоне цен FCPO)
+            * **Crude Oil**: (Взаимосвязь с энергией)
+
             ## Regulatory & Policy Updates
+            (Новости по пошлинам и мандатам за последние 7 дней)
+
             ## Market Trend Analysis
-            ## Trade Flows & Production` 
+            (Анализ тренда FCPO за неделю)
+
+            ## Trade Flows & Production
+            (Отгрузки и производство масличных)` 
           }
         ],
         temperature: 0.1
