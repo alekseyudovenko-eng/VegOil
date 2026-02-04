@@ -3,22 +3,22 @@ export default async function handler(req, res) {
   const GROQ_KEY = process.env.VITE_GROQ_API_KEY || process.env.GROQ_API_KEY;
 
   try {
-    // 1. ПОИСК АКТУАЛЬНЫХ ЦЕН
+    // 1. УСКОРЕННЫЙ ПОИСК (меньше результатов = выше скорость)
     const searchRes = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        query: `Crude Palm Oil price MYR/T, Soybean Oil price CBOT, Sunflower Oil price Black Sea FOB, Rapeseed Oil price Matif - February 4 2026`,
-        search_depth: "advanced",
-        max_results: 8
+        query: `palm oil FCPO, soybean oil CBOT, sunflower oil prices Feb 4 2026`,
+        search_depth: "basic", // "basic" работает быстрее чем "advanced"
+        max_results: 5
       })
     });
     
     const sData = await searchRes.json();
-    const context = sData.results?.map(r => r.content).join("\n\n") || "No price data found.";
+    const context = sData.results?.map(r => r.content).join("\n") || "No news.";
 
-    // 2. ГЕНЕРАЦИЯ ОТЧЕТА С ТАБЛИЦЕЙ
+    // 2. ГЕНЕРАЦИЯ С ЧЕТКИМ ШАБЛОНОМ ТАБЛИЦЫ
     const groqReport = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
@@ -27,28 +27,29 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `You are a Terminal Intelligence. Today is Feb 4, 2026. 
-            Create a market report.
-            START with a "## CURRENT MARKET PRICES" section. 
-            Inside it, create a Markdown table with columns: Commodity, Price, Change, Unit.
-            Then add sections: ## MARKET ANALYSIS and ## KEY DRIVERS using the provided context.
-            Use professional, cold, terminal-style tone.` 
+            content: `You are a Terminal AI. Date: Feb 4, 2026.
+            Instructions:
+            1. Start with "## CURRENT PRICES".
+            2. Create a Markdown table EXACTLY like this:
+            | Commodity | Price | Unit |
+            |-----------|-------|------|
+            | CPO (FCPO) | 4215 | MYR/T |
+            3. Follow with "## MARKET ANALYSIS".
+            4. Use cold, brief style.` 
           },
-          { role: "user", content: `Context: ${context}` }
+          { role: "user", content: `Data: ${context}` }
         ],
-        temperature: 0.1
+        temperature: 0
       })
     });
 
-    const gReport = await groqReport.json();
-    const reportText = gReport.choices?.[0]?.message?.content || "## Error\nUnable to reach intelligence core.";
-
+    const gData = await groqReport.json();
     res.status(200).json({ 
-      report: reportText,
-      chartData: [] // Оставляем пустым, чтобы интерфейс показал заглушку
+      report: gData.choices?.[0]?.message?.content || "## System Error\nCore offline.",
+      chartData: [] 
     });
 
   } catch (e) {
-    res.status(200).json({ report: `## Connection Error\n${e.message}`, chartData: [] });
+    res.status(200).json({ report: `## Connection Error\n${e.message}` });
   }
 }
