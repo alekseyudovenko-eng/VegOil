@@ -12,63 +12,77 @@ export default async function handler(req, res) {
   const endStr = end.toISOString().split('T')[0];
 
   try {
-    // 1. ЗАПРОС ЦЕНЫ С MPOC (Твой новый блок)
-    const mpocRes = await fetch("https://api.tavily.com/extract", {
+    // 1. ПОЛУЧАЕМ ДАННЫЕ ДЛЯ ГРАФИКА (MPOC)
+    const chartRes = await fetch("https://api.tavily.com/extract", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        urls: ["https://mpoc.org.my/"],
+        urls: ["https://mpoc.org.my/market-insight/daily-palm-oil-prices/"],
       })
     });
-    const extraction = await mpocRes.json();
-    const priceInfo = extraction.results?.[0]?.raw_content || "No MPOC data";
+    const chartExtraction = await chartRes.json();
+    const chartRaw = chartExtraction.results?.[0]?.raw_content || "";
 
-    // 2. ПОИСК НОВОСТЕЙ
+    // Превращаем текст в JSON для графика
+    const groqChart = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [{ 
+          role: "system", 
+          content: "Extract daily prices for Feb 2026. Return ONLY a JSON array: [{\"date\": \"Feb 01\", \"price\": 4225}]. No text, only JSON." 
+        }, { 
+          role: "user", 
+          content: chartRaw 
+        }],
+        temperature: 0
+      })
+    });
+    const chartJsonRes = await groqChart.json();
+    const chartDataJSON = JSON.parse(chartJsonRes.choices[0].message.content || "[]");
+
+    // 2. ИЩЕМ НОВОСТИ
     const searchRes = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        query: `latest prices news Feb 2026 palm oil Sunflower Rapeseed Soybean Cottonseed crude oil`,
+        query: `latest market prices news Feb 2026 palm oil Sunflower Rapeseed Soybean Cottonseed crude oil`,
         search_depth: "advanced",
         max_results: 8,
         days: 7
       })
     });
     const sData = await searchRes.json();
-    const newsContext = sData.results?.map(r => r.content).join("\n\n") || "No news found.";
+    const context = sData.results?.map(r => r.content).join("\n\n") || "No news found.";
 
-    // 3. ГЕНЕРАЦИЯ (Объединяем цену и новости)
-    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    // 3. ГЕНЕРИРУЕМ ТЕКСТ ОТЧЕТА
+    const groqReport = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
         messages: [
-          { 
-            role: "system", 
-            content: `You are a strict Commodity Validator. 
-            Target Period: Feb 2026. 
-            RULES: 
-            1. Use MPOC data as the ONLY source for the current palm oil price. 
-            2. For news, strictly ignore anything from 2025. 
-            3. Use ## for headers. No bolding (*).` 
-          },
-          { 
-            role: "user", 
-            content: `PRICE DATA (MPOC): ${priceInfo} \n\n NEWS CONTEXT: ${newsContext}. 
-            Create a report with current prices and weekly news.` 
-          }
+          { role: "system", content: "You are a Senior Analyst. Create a report for Feb 2026. Use ## headers. Ignore 2025." },
+          { role: "user", content: `Context: ${context}` }
         ],
         temperature: 0.1
       })
     });
+    const gReportData = await groqReport.json();
 
-    const gData = await groqRes.json();
-    res.status(200).json({ report: gData.choices[0].message.content });
+    // ОТПРАВЛЯЕМ ВСЁ ВМЕСТЕ
+    res.status(200).json({ 
+      report: gReportData.choices[0].message.content,
+      chartData: chartDataJSON 
+    });
 
   } catch (e) {
-    res.status(200).json({ report: `## Error\n${e.message}` });
+    res.status(200).json({ 
+      report: `## Error\n${e.message}`, 
+      chartData: [] 
+    });
   }
 }
