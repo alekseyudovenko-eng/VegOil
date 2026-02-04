@@ -2,29 +2,28 @@ export default async function handler(req, res) {
   const TAVILY_KEY = process.env.TAVILY_API_KEY;
   const GROQ_KEY = process.env.VITE_GROQ_API_KEY || process.env.GROQ_API_KEY;
 
+  const currentYear = "2026";
+  const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
   try {
-    // 1. ТАРГЕТИРОВАННЫЙ ПОИСК (с ограничением по качественным сайтам)
     const searchRes = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        // Ищем только на авторитетных ресурсах
-        query: `site:tradingeconomics.com, investing.com, reuters.com price today: Palm Oil FCPO MYR, Soybean Oil CBOT, Sunflower Oil FOB, Brent Crude`,
+        // Ищем только на финансовых сайтах, ИСКЛЮЧАЯ соцсети
+        query: `latest prices and market news Feb 2026: Palm Oil FCPO MYR, Soybean Oil CBOT, Brent Crude`,
         search_depth: "basic",
-        max_results: 8,
-        days: 2
+        max_results: 10,
+        days: 3,
+        // Вырезаем мусорные домены
+        exclude_domains: ["facebook.com", "linkedin.com", "twitter.com", "x.com", "instagram.com"]
       })
     });
     
     const sData = await searchRes.json();
-    
-    // Чистим контекст: убираем лишние пробелы и мусор
-    const context = sData.results?.map(r => 
-      `[${new URL(r.url).hostname}] ${r.content.replace(/\s+/g, ' ').substring(0, 500)}`
-    ).join("\n") || "";
+    const context = sData.results?.map(r => `[SOURCE: ${r.url}] [TITLE: ${r.title}] ${r.content.substring(0, 600)}`).join("\n\n");
 
-    // 2. ИИ-АНАЛИТИК С ПРАВОМ НА ОТКАЗ
     const groqReport = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
@@ -33,34 +32,25 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `You are a strict Commodity Terminal. 
-            Rules:
-            1. If price not found for a commodity, write "DATA_MISSING". Do NOT guess.
-            2. Palm Oil: Must be in MYR/T.
-            3. Verification: Double check Rapeseed. If price is ~400-500, it's SEEDS (Seeds are not Oil).
+            content: `You are a Commodity Analyst. Current date is ${dateStr}.
             
-            Structure:
-            ## LIVE QUOTES
-            [SYMBOL] NAME: PRICE | BASIS | DATE | SOURCE
+            STRICT FILTER:
+            - IGNORE all data and news from 2023, 2024, or 2025. 
+            - Use ONLY information explicitly dated February 2026.
+            - If you see "2023", discard that entire piece of information.
             
-            ## INTELLIGENCE FEED
-            - [DATE] TOPIC (Source)
-            
-            ## ANALYSIS
-            2 brief professional paragraphs.` 
+            OUTPUT SECTIONS:
+            1. ## MARKET QUOTES: [SYMBOL] NAME: PRICE | BASIS | DATE | SOURCE
+            2. ## INTELLIGENCE FEED: - [DATE] TOPIC (Source)
+            3. ## SUMMARY: Brief professional outlook.` 
           },
           { role: "user", content: `Context: ${context}` }
         ],
-        temperature: 0 // Никакой фантазии
+        temperature: 0
       })
     });
 
     const gData = await groqReport.json();
-    
-    if (gData.error?.code === "rate_limit_exceeded") {
-       return res.status(200).json({ report: "## RATE_LIMIT\nSystem cooling down. Please wait 10s.", chartData: [] });
-    }
-
     res.status(200).json({ report: gData.choices?.[0]?.message?.content, chartData: [] });
 
   } catch (e) {
