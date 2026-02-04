@@ -4,6 +4,7 @@ export default async function handler(req, res) {
 
   const currentYear = new Date().getFullYear();
   const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const countryList = "Azerbaijan, Armenia, Belarus, Bulgaria, Czech Republic, Croatia, Estonia, France, Germany, Great Britain, Georgia, Hungary, Italy, Kazakhstan, Kyrgyzstan, Latvia, Lithuania, Moldova, Netherlands, Poland, Romania, Russia, Slovakia, Tajikistan, Turkmenistan, Ukraine, Uzbekistan";
 
   try {
     const searchRes = await fetch("https://api.tavily.com/search", {
@@ -11,11 +12,11 @@ export default async function handler(req, res) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        query: `Top market driver news Feb 2026: Palm Oil FCPO, Soybean Oil CBOT, Sunflower Oil Black Sea, Rapeseed Oil MATIF, Cottonseed Oil, Brent Crude, Indonesia Malaysia palm tax, Brazil Soy harvest, Ukraine Sunflower supply`,
-        search_depth: "advanced", // Здесь нужен advanced для поиска именно "самых цитируемых"
-        max_results: 15,
+        query: `Market news Feb 2026: ${countryList} agriculture production, trade flows, export taxes, biofuel policy, palm soy sunflower rapeseed oil news`,
+        search_depth: "advanced",
+        max_results: 20,
         days: 7,
-        exclude_domains: ["facebook.com", "linkedin.com", "instagram.com", "x.com"]
+        exclude_domains: ["facebook.com", "linkedin.com", "x.com"]
       })
     });
     
@@ -26,38 +27,35 @@ export default async function handler(req, res) {
       method: "POST",
       headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: "llama-3.3-70b-versatile", // Используем мощную модель для сложной классификации
         messages: [
           { 
             role: "system", 
-            content: `You are a Chief Market Editor. Today is ${dateStr}. 
-            Based on the context, select ONLY ONE (1) most critical and cited news per category for the last 7 days.
+            content: `You are a Senior Commodity Analyst. Today is ${dateStr}.
             
-            STRUCTURE:
-            
-            ## PRODUCT INTELLIGENCE
-            Select the #1 most important news for each:
-            - PALM OIL
-            - SOYBEAN OIL
-            - SUNFLOWER OIL
-            - RAPESEED OIL
-            - COTTONSEED OIL
-            - BRENT CRUDE
-            Format: [PRODUCT NAME] | [DATE] : [Summary] (Source: domain.com)
+            STRUCTURE YOUR REPORT INTO THESE 5 SECTIONS:
 
-            ## REGIONAL INTELLIGENCE
-            Select the #1 most important news for each:
-            - INDONESIA/MALAYSIA
-            - USA/BRAZIL
-            - BLACK SEA REGION (UKRAINE/RUSSIA)
-            - EUROPEAN UNION
-            - INDIA/CHINA
-            Format: [REGION] | [DATE] : [Summary] (Source: domain.com)
+            1. ## EXECUTIVE SUMMARY
+            Provide a high-level overview of the most critical market shifts today.
 
-            RULES:
-            - If no specific news found for a category, use "No significant volatility reported."
-            - Ensure the source is a reputable financial outlet.
-            - IGNORE any data not from ${currentYear}.` 
+            2. ## PRICE DYNAMICS
+            [System Note: Pending real-time data integration. All values on hold.]
+
+            3. ## PRODUCTION AND TRADE FLOWS
+            For each relevant country from the list (${countryList}) and products (Palm, Soy, Sun, Rape, Cottonseed Oils, Brent), provide ONE key news item regarding harvests, logistics, or export volumes from the last 7 days.
+            Format: [COUNTRY/PRODUCT] | [DATE] : [Summary] (Source)
+
+            4. ## POLICY AND REGULATORY CHANGES
+            For each relevant country and product, provide ONE key news item regarding government interventions, taxes, subsidies, or biofuel mandates from the last 7 days.
+            Format: [COUNTRY/PRODUCT] | [DATE] : [Summary] (Source)
+
+            5. ## CONCLUSIONS
+            Briefly state the net impact on global edible oil markets.
+
+            STRICT RULES:
+            - Only news from ${currentYear}.
+            - If no news for a specific country exists in context, omit that country.
+            - Professional, dry, terminal-style tone.` 
           },
           { role: "user", content: `Context: ${context}` }
         ],
