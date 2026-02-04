@@ -10,55 +10,60 @@ export default async function handler(req, res) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        // Снайперский запрос по конкретным базисам
-        query: `Current prices Feb 4 2026: Palm Oil FCPO MYR Bursa Malaysia, Soybean Oil CBOT futures, Sunflower Oil FOB Black Sea, Rapeseed Oil MATIF EUR, Brent Crude ICE USD`,
+        query: `Price Feb 4 2026: Palm Oil FCPO MYR, Soybean Oil CBOT, Sunflower Oil FOB, Rapeseed Oil MATIF, Brent Crude ICE`,
         search_depth: "basic",
-        max_results: 10,
-        days: 2
+        max_results: 6 // Уменьшили, чтобы не перегружать ИИ
       })
     });
     
     const sData = await searchRes.json();
-    const context = sData.results?.map(r => `SOURCE: ${r.url} | CONTENT: ${r.content}`).join("\n\n") || "";
+    
+    // Если результатов нет - выводим это сразу
+    if (!sData.results || sData.results.length === 0) {
+      return res.status(200).json({ report: "## SYSTEM_ERROR\nSearch returned no results. Check API Key.", chartData: [] });
+    }
+
+    // Ограничиваем длину контента от каждого сайта (первые 1000 символов)
+    const context = sData.results.map(r => `[SOURCE: ${r.url}] ${r.content.substring(0, 1000)}`).join("\n\n");
 
     const groqReport = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
+        // Пробуем 8b, но с ОЧЕНЬ коротким и понятным промптом
         model: "llama-3.1-8b-instant",
         messages: [
           { 
             role: "system", 
-            content: `You are a Terminal Intelligence. Today is ${dateStr}.
-            
-            1. Section "## MARKET QUOTES":
-               - Use ONLY this format: [SYMBOL] NAME: PRICE | BASIS | DATE | SOURCE
-               - PALM OIL: Show price in MYR/T (target ~4219).
-               - SOYBEAN OIL: Use USd/lb (CBOT).
-               - SUNFLOWER OIL: Use USD/T (FOB Black Sea).
-               - RAPESEED OIL: Use EUR/T (MATIF).
-               - BRENT: Use USD/bbl (ICE).
-               - COTTONSEED OIL: Use original currency found.
-
-            2. Section "## INTELLIGENCE FEED":
-               - List 4-5 key news from the context.
-               - Format: - [DATE] TOPIC: Summary. (Source: domain.com)
-
-            3. Section "## STRATEGIC SUMMARY":
-               - Professional 2-paragraph analysis.
-            
-            Style: Monochromatic, industrial, no emojis.` 
+            content: `Terminal Intelligence. Current date: ${dateStr}. 
+            Format the following data into:
+            1. ## MARKET QUOTES: [SYMBOL] NAME: PRICE | BASIS | DATE | SOURCE
+            2. ## INTELLIGENCE FEED: - [DATE] TOPIC (Source)
+            3. ## SUMMARY: 2 brief paragraphs.
+            Constraint: Palm Oil in MYR/T only.` 
           },
-          { role: "user", content: `Context: ${context}` }
+          { role: "user", content: `Data: ${context}` }
         ],
-        temperature: 0
+        temperature: 0,
+        max_tokens: 800 // Ограничиваем длину ответа для скорости
       })
     });
 
     const gData = await groqReport.json();
-    res.status(200).json({ report: gData.choices?.[0]?.message?.content || "## Error\nAI failed to format data.", chartData: [] });
+    
+    // Проверка на ошибки Groq (например, превышение лимита токенов)
+    if (gData.error) {
+      return res.status(200).json({ report: `## GROQ_ERROR\n${gData.error.message}`, chartData: [] });
+    }
+
+    const finalReport = gData.choices?.[0]?.message?.content;
+
+    res.status(200).json({ 
+      report: finalReport || "## Error\nAI returned empty content. Try refreshing.", 
+      chartData: [] 
+    });
 
   } catch (e) {
-    res.status(200).json({ report: `## SYSTEM_DIAGNOSTICS\nError: ${e.message}`, chartData: [] });
+    res.status(200).json({ report: `## CRITICAL_FAILURE\n${e.message}`, chartData: [] });
   }
 }
