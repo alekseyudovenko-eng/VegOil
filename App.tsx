@@ -1,30 +1,34 @@
 import React, { useEffect, useState } from 'react';
+// 1. Импорты должны быть строго вверху
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+
+interface Section {
+  title: string;
+  content: string;
+}
 
 const App: React.FC = () => {
-  const [reportData, setReportData] = useState<{title: string, content: string}[]>([]);
+  const [reportData, setReportData] = useState<Section[]>([]);
+  // 2. Добавляем стейт для данных графика
+  const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch('/api/get-prices')
       .then(res => res.json())
       .then(data => {
+        // Парсим текст отчета
         const rawText = data.report || '';
-        
-        // Разбиваем по решеткам, но очищаем их из заголовков сразу
         const sections = rawText.split('##').filter(Boolean).map(s => {
           const lines = s.trim().split('\n');
-          // Очищаем заголовок от возможных остаточных символов
           const cleanTitle = lines[0].replace(/[#*]/g, '').trim();
-          // Очищаем весь текст секции от звездочек и решеток
           const cleanContent = lines.slice(1).join('\n').replace(/[#*]/g, '').trim();
-          
-          return {
-            title: cleanTitle,
-            content: cleanContent
-          };
+          return { title: cleanTitle, content: cleanContent };
         });
         
         setReportData(sections);
+        // 3. Сохраняем данные для графика
+        setChartData(data.chartData || []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -48,13 +52,38 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* CHART PLACEHOLDER */}
-        <div className="relative group overflow-hidden bg-[#0d0d0d] border border-white/5 rounded-2xl p-12 flex items-center justify-center min-h-[350px] transition-all hover:border-emerald-500/20 shadow-inner">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-          <div className="text-center relative z-10">
-            <div className="text-slate-800 text-[10px] font-mono mb-3 tracking-[0.3em]">MNTR_ID: VIZ_DATA_2026</div>
-            <h2 className="text-sm font-light text-slate-500 uppercase tracking-[0.6em] italic">Chart Module Initializing</h2>
-          </div>
+        {/* CHART SECTION */}
+        <div className="h-72 w-full bg-[#0d0d0d] rounded-2xl p-6 border border-white/5 shadow-2xl">
+          <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em] mb-4">Live CPO Price Trend (MPOC)</p>
+          {loading ? (
+             <div className="flex items-center justify-center h-48 text-slate-700 animate-pulse font-mono text-xs">
+                FETCHING DATA...
+             </div>
+          ) : chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis dataKey="date" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis hide domain={['auto', 'auto']} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#050505', border: '1px solid #1e293b', borderRadius: '8px' }}
+                  itemStyle={{ color: '#10b981', fontSize: '12px' }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="price" 
+                  stroke="#10b981" 
+                  strokeWidth={2} 
+                  dot={{ fill: '#10b981', r: 3 }} 
+                  activeDot={{ r: 5, strokeWidth: 0 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-48 text-slate-500 text-xs italic">
+              No price data available for the current period.
+            </div>
+          )}
         </div>
 
         {/* ANALYTICS REPORT */}
