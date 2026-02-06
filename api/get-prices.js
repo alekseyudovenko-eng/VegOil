@@ -4,8 +4,8 @@ export default async function handler(req, res) {
   const countryList = "Azerbaijan, Armenia, Belarus, Bulgaria, Czech Republic, Croatia, Estonia, France, Germany, Great Britain, Georgia, Hungary, Italy, Kazakhstan, Kyrgyzstan, Latvia, Lithuania, Moldova, Netherlands, Poland, Romania, Russia, Slovakia, Tajikistan, Turkmenistan, Ukraine, Uzbekistan";
 
   try {
-    // ОБНОВЛЕНО: Используем актуальную модель Gemini 3 Flash
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_KEY}`;
+    // Используем стабильную модель 2.5 Flash
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`;
 
     const response = await fetch(apiUrl, {
       method: "POST",
@@ -13,8 +13,8 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Gather agricultural market news for the last 7 days for these countries: ${countryList}. 
-            Focus on: Sunflower oil, Palm oil, Soybean oil, Rapeseed oil, and Brent Crude.
+            text: `Act as a commodity analyst. Provide a market report for the last 7 days (February 2026) for these countries: ${countryList}. 
+            Focus strictly on: Sunflower oil, Palm oil, Soybean oil, Rapeseed oil, and Brent Crude prices.
             
             Structure:
             1. ## EXECUTIVE SUMMARY
@@ -22,7 +22,7 @@ export default async function handler(req, res) {
             3. ## POLICY AND REGULATORY CHANGES
             4. ## CONCLUSIONS
             
-            Strictly February 2026 data.`
+            Use Google Search to find real-time data.`
           }]
         }],
         tools: [{
@@ -34,13 +34,13 @@ export default async function handler(req, res) {
     const data = await response.json();
 
     if (data.error) {
-      // Если модель не найдена, попробуем 2.5 (план Б)
       return res.status(200).json({ 
-        report: `## API ERROR\n${data.error.message}\nTry switching to gemini-2.5-flash if preview is not available.` 
+        report: `## API ERROR\nCode: ${data.error.code}\nMessage: ${data.error.message}` 
       });
     }
 
-    const report = data.candidates?.[0]?.content?.parts?.[0]?.text || "No content generated.";
+    const report = data.candidates?.[0]?.content?.parts?.[0]?.text || "No content generated. Try again in a minute.";
+    
     res.status(200).json({ report, chartData: [] });
 
   } catch (e) {
