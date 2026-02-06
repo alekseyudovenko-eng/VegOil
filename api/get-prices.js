@@ -1,11 +1,11 @@
 export default async function handler(req, res) {
   const GEMINI_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.VITE_GOOGLE_API_KEY;
-  const { section } = req.query; // Получаем тип раздела (prices, news, policy)
+  const { section } = req.query;
 
   const prompts = {
-    summary: "Briefly summarize global oilseed market trends for the last 7 days. Focus on CIS and EU.",
-    prices: "List current prices for Crude Sunflower Oil (SFO), Rapeseed Oil (RSO), Soybean Oil (SBO) and Brent Crude. Use a table.",
-    policy: "Report new export duties, taxes, or trade bans for oilseeds in Russia, Ukraine, Kazakhstan and EU for Feb 2026."
+    summary: "Briefly summarize key global oilseed market events for the last 7 days. Focus on CIS and EU.",
+    prices: "Provide a quick table of current market prices for Sunflower Oil, Rapeseed Oil, Soy Oil, and Brent Crude.",
+    policy: "Report any recent export taxes or trade bans on vegetable oils in Russia, Ukraine, and Kazakhstan."
   };
 
   try {
@@ -19,10 +19,25 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-    const report = data.candidates?.[0]?.content?.parts?.[0]?.text || "No data found for this section.";
     
+    // ПРОВЕРКА НА ОШИБКУ ОТ GOOGLE
+    if (data.error) {
+      return res.status(200).json({ 
+        report: `## Ошибка API\n${data.error.message || 'Превышен лимит запросов'}` 
+      });
+    }
+
+    // БОЛЕЕ ГИБКИЙ ПАРСИНГ ОТВЕТА
+    const report = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!report) {
+      // Если текста нет, проверим, не заблокирован ли контент фильтрами
+      const reason = data.promptFeedback?.blockReason || "Empty response from AI";
+      return res.status(200).json({ report: `## Внимание\nНе удалось получить текст: ${reason}` });
+    }
+
     res.status(200).json({ report });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(200).json({ report: `## Ошибка соединения\n${e.message}` });
   }
 }
