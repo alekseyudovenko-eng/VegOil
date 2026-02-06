@@ -1,165 +1,138 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Oil Intelligence Terminal</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            background-color: #f8fafc; /* Светло-серый фон */
-            color: #1e293b;
-            font-family: 'Inter', sans-serif;
-        }
-        /* Стилизация текста отчета */
-        .report-content h2 {
-            color: #0369a1; /* Глубокий синий для заголовков */
-            font-size: 1.4rem;
-            font-weight: 700;
-            margin-top: 2rem;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-        }
-        .report-content h2::before {
-            content: "";
-            width: 4px;
-            height: 1.5rem;
-            background-color: #10b981; /* Зеленый акцент */
-            margin-right: 12px;
-            border-radius: 2px;
-        }
-        .report-content p {
-            margin-bottom: 1rem;
-            line-height: 1.7;
-            color: #475569;
-        }
-        .card {
-            background: white;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-        }
-        /* Анимация загрузки */
-        .loader-line {
-            height: 3px;
-            width: 100%;
-            position: relative;
-            overflow: hidden;
-            background-color: #e2e8f0;
-        }
-        .loader-line:before {
-            content: "";
-            position: absolute;
-            left: -50%;
-            height: 3px;
-            width: 40%;
-            background-color: #10b981;
-            animation: lineAnim 1.5s linear infinite;
-        }
-        @keyframes lineAnim {
-            0% { left: -40%; }
-            50% { left: 20%; width: 80%; }
-            100% { left: 100%; width: 100%; }
-        }
-    </style>
-</head>
-<body class="p-4 md:p-10">
+import { useState } from 'react';
 
-    <header class="max-w-6xl mx-auto mb-10 flex flex-col md:flex-row justify-between items-end border-b border-slate-200 pb-6">
-        <div>
-            <div class="flex items-center gap-2 mb-1">
-                <span class="bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">Sector: Oilseeds</span>
-                <span class="text-slate-400 text-xs font-medium uppercase tracking-widest">Market Intelligence</span>
-            </div>
-            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">
-                Agro<span class="text-emerald-600">Oil</span> Analysis
-            </h1>
-        </div>
-        <div class="mt-6 md:mt-0">
-            <button onclick="generateReport()" id="genBtn" class="bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 px-8 rounded-lg shadow-lg shadow-slate-200 transition-all active:scale-95 flex items-center gap-2">
-                <span>Generate Market Update</span>
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-            </button>
-        </div>
-    </header>
+function App() {
+  const [report, setReport] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    <main class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
+  const generateReport = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/get-prices');
+      const data = await res.json();
+
+      if (data.error) {
+        setError(data.error.message || 'API Error');
+      } else {
+        // Форматирование простейшего Markdown в HTML
+        let formatted = data.report
+          .replace(/## (.*)/g, '<h2 class="text-2xl font-bold text-sky-700 mt-8 mb-4 flex items-center gap-3"><span class="w-1 h-6 bg-emerald-500 rounded"></span>$1</h2>')
+          .replace(/\*\* (.*)/g, '<p class="font-bold mt-4">$1</p>')
+          .replace(/^\* (.*)/gm, '<p class="pl-5 border-l-2 border-slate-100 my-2 text-slate-600 italic">• $1</p>');
         
-        <aside class="lg:col-span-1 space-y-6">
-            <div class="card rounded-xl p-5">
-                <h3 class="text-slate-900 font-bold text-sm mb-4">Live Indicators</h3>
-                <div class="space-y-4">
-                    <div class="flex justify-between items-center">
-                        <span class="text-slate-500 text-sm">Brent Crude</span>
-                        <span class="text-slate-900 font-bold">$83.42</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-slate-500 text-sm">SFO Export</span>
-                        <span class="text-slate-900 font-bold">$965.00</span>
-                    </div>
-                    <div class="flex justify-between items-center text-xs text-emerald-600 font-medium">
-                        <span>● Black Sea Active</span>
-                        <span>24/7</span>
-                    </div>
-                </div>
-            </div>
+        setReport(formatted);
+      }
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-            <div class="card rounded-xl p-5 bg-emerald-50 border-emerald-100">
-                <h3 class="text-emerald-900 font-bold text-sm mb-2">Coverage</h3>
-                <p class="text-emerald-700 text-xs leading-relaxed">
-                    27 countries across CIS, EU and Central Asia are being monitored for oilseed market shifts.
-                </p>
+  return (
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 p-4 md:p-10 font-sans">
+      {/* Top Bar */}
+      <header className="max-w-6xl mx-auto mb-10 flex flex-col md:flex-row justify-between items-end border-b border-slate-200 pb-6">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Sector: Oilseeds</span>
+            <span className="text-slate-400 text-xs font-medium uppercase tracking-widest">Market Intelligence</span>
+          </div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+            Agro<span className="text-emerald-600">Oil</span> Analysis
+          </h1>
+        </div>
+        <div className="mt-6 md:mt-0">
+          <button 
+            onClick={generateReport}
+            disabled={loading}
+            className={`bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 px-8 rounded-lg shadow-lg shadow-slate-200 transition-all active:scale-95 flex items-center gap-2 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <span>{loading ? 'Analyzing Data...' : 'Generate Market Update'}</span>
+            {!loading && (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+              </svg>
+            )}
+          </button>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
+        {/* Sidebar */}
+        <aside className="lg:col-span-1 space-y-6">
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+            <h3 className="text-slate-900 font-bold text-sm mb-4">Live Indicators</h3>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 text-sm">Brent Crude</span>
+                <span className="text-slate-900 font-bold">$83.42</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 text-sm">SFO Export</span>
+                <span className="text-slate-900 font-bold">$965.00</span>
+              </div>
+              <div className="flex justify-between items-center text-xs text-emerald-600 font-medium pt-2">
+                <span>● Black Sea Active</span>
+                <span>2026.02.06</span>
+              </div>
             </div>
+          </div>
         </aside>
 
-        <section class="lg:col-span-3">
-            <div id="loader" class="hidden mb-6">
-                <div class="loader-line rounded-full"></div>
-                <p class="text-xs text-slate-400 mt-2 font-medium animate-pulse">Consulting global databases and Google Search news...</p>
+        {/* Content */}
+        <section className="lg:col-span-3">
+          {loading && (
+            <div className="mb-6">
+              <div className="h-1 w-full bg-slate-200 overflow-hidden rounded-full">
+                <div className="h-full bg-emerald-500 animate-progress origin-left"></div>
+              </div>
+              <p className="text-xs text-slate-400 mt-2 font-medium animate-pulse text-center">Consulting global databases and Google Search...</p>
             </div>
+          )}
 
-            <div id="reportOutput" class="card rounded-2xl p-8 md:p-12 min-h-[500px] transition-all">
-                <div class="text-center py-20">
-                    <div class="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    </div>
-                    <h3 class="text-slate-400 font-medium">No active report</h3>
-                    <p class="text-slate-300 text-sm">Click the button above to start the analytical engine.</p>
+          <div className="bg-white border border-slate-200 rounded-2xl p-8 md:p-12 min-h-[500px] shadow-sm">
+            {error && (
+              <div className="p-4 bg-red-50 text-red-600 rounded-lg font-mono text-sm border border-red-100 mb-6">
+                <strong>System Error:</strong> {error}
+              </div>
+            )}
+
+            {!report && !loading && !error && (
+              <div className="text-center py-20">
+                <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
                 </div>
-            </div>
-        </section>
-    </main>
+                <h3 className="text-slate-400 font-medium">Ready for Analysis</h3>
+                <p className="text-slate-300 text-sm">Click the button to fetch the latest oilseed market news.</p>
+              </div>
+            )}
 
-    <script>
-        async function generateReport() {
-            const btn = document.getElementById('genBtn');
-            const output = document.getElementById('reportOutput');
-            const loader = document.getElementById('loader');
-            
-            btn.disabled = true;
-            btn.classList.add('opacity-50');
-            loader.classList.remove('hidden');
-            
-            try {
-                const res = await fetch('/api/get-prices');
-                const data = await res.json();
-                
-                // Форматирование Markdown в HTML
-                let text = data.report;
-                text = text.replace(/## (.*)/g, '<h2>$1</h2>');
-                text = text.replace(/\*\* (.*)/g, '<p><strong>$1</strong></p>');
-                text = text.replace(/^\* (.*)/gm, '<p class="pl-4 border-l-2 border-slate-100 italic">• $1</p>');
-                
-                output.innerHTML = `<div class="report-content animate-in fade-in duration-700">${text}</div>`;
-            } catch (e) {
-                output.innerHTML = `<div class="p-4 bg-red-50 text-red-600 rounded-lg font-mono">System Error: ${e.message}</div>`;
-            } finally {
-                btn.disabled = false;
-                btn.classList.remove('opacity-50');
-                loader.classList.add('hidden');
-            }
+            {report && (
+              <div 
+                className="report-view leading-relaxed text-slate-700"
+                dangerouslySetInnerHTML={{ __html: report }} 
+              />
+            )}
+          </div>
+        </section>
+      </main>
+
+      <style>{`
+        @keyframes progress {
+          0% { transform: translateX(-100%) scaleX(0.2); }
+          50% { transform: translateX(0) scaleX(0.5); }
+          100% { transform: translateX(100%) scaleX(0.2); }
         }
-    </script>
-</body>
-</html>
+        .animate-progress {
+          animation: progress 1.5s infinite linear;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+export default App;
