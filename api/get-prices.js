@@ -15,9 +15,7 @@ export default async function handler(req, res) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        // ВАЖНО: Если ошибка 429 повторится, удали следующую строку с tools целиком
-        tools: [{ google_search: {} }] 
+        contents: [{ parts: [{ text: prompt }] }],         
       })
     });
 
