@@ -1,93 +1,60 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 function App() {
-  const [sections, setSections] = useState<{ [key: string]: string }>({
-    summary: '',
-    prices: '',
-    policy: ''
-  });
-  const [loading, setLoading] = useState<string | null>(null);
+  const [report, setReport] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const fetchSection = async (type: string) => {
-    setLoading(type);
+  const fetchReport = async () => {
+    setLoading(true);
     try {
-      const res = await fetch(`/api/get-prices?section=${type}`);
+      const res = await fetch('/api/get-prices');
       const data = await res.json();
-      setSections(prev => ({ ...prev, [type]: data.report }));
+      setReport(data.report);
     } catch (e) {
-      console.error("Error loading section:", e);
+      setReport("Ошибка загрузки данных.");
     } finally {
-      setLoading(null);
+      setLoading(false);
     }
   };
 
-  const renderContent = (content: string) => {
-    if (!content) return null;
-    return (
-      <div 
-        className="prose prose-slate max-w-none text-slate-700 leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: content
-          .replace(/## (.*)/g, '<h2 class="text-xl font-bold text-sky-800 mt-6 mb-3 border-b pb-2">$1</h2>')
-          .replace(/\*\* (.*)/g, '<p class="font-bold text-slate-900 mt-4">$1</p>')
-          .replace(/^\* (.*)/gm, '<li class="ml-4 list-disc">$1</li>')
-        }} 
-      />
-    );
-  };
+  useEffect(() => {
+    fetchReport();
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-8 font-sans">
-      <div className="max-w-5xl mx-auto">
-        <header className="mb-10 text-center md:text-left">
-          <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">
-            Agro<span className="text-emerald-600">Oil</span> Monitor
-          </h1>
-          <p className="text-slate-500 font-medium">Модульный анализ рынка масличных</p>
+    <div className="min-h-screen bg-[#f8fafc] p-4 md:p-12 font-sans text-slate-900">
+      <div className="max-w-4xl mx-auto">
+        <header className="flex justify-between items-center mb-12">
+          <h1 className="text-3xl font-black tracking-tight">Agro<span className="text-emerald-600">Oil</span> Monitor</h1>
+          <button 
+            onClick={fetchReport} 
+            disabled={loading}
+            className="bg-emerald-600 text-white px-6 py-2 rounded-full font-bold hover:bg-emerald-700 transition disabled:opacity-50"
+          >
+            {loading ? 'Обновление...' : 'Обновить отчет'}
+          </button>
         </header>
 
-        {/* ПАНЕЛЬ КНОПОК */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-          <button 
-            onClick={() => fetchSection('summary')}
-            disabled={!!loading}
-            className="bg-white hover:bg-slate-50 p-6 rounded-xl border-2 border-transparent hover:border-emerald-500 shadow-sm transition-all text-left group"
-          >
-            <div className="text-emerald-600 font-bold mb-1 group-hover:scale-110 transition-transform">Global News</div>
-            <div className="text-xs text-slate-400">{loading === 'summary' ? 'Загрузка...' : 'Обзор мировых трендов'}</div>
-          </button>
-
-          <button 
-            onClick={() => fetchSection('prices')}
-            disabled={!!loading}
-            className="bg-white hover:bg-slate-50 p-6 rounded-xl border-2 border-transparent hover:border-sky-500 shadow-sm transition-all text-left group"
-          >
-            <div className="text-sky-600 font-bold mb-1 group-hover:scale-110 transition-transform">Market Prices</div>
-            <div className="text-xs text-slate-400">{loading === 'prices' ? 'Загрузка...' : 'Масла и Brent Crude'}</div>
-          </button>
-
-          <button 
-            onClick={() => fetchSection('policy')}
-            disabled={!!loading}
-            className="bg-white hover:bg-slate-50 p-6 rounded-xl border-2 border-transparent hover:border-amber-500 shadow-sm transition-all text-left group"
-          >
-            <div className="text-amber-600 font-bold mb-1 group-hover:scale-110 transition-transform">Regulations</div>
-            <div className="text-xs text-slate-400">{loading === 'policy' ? 'Загрузка...' : 'Пошлины и ограничения'}</div>
-          </button>
-        </div>
-
-        {/* БЛОКИ КОНТЕНТА */}
-        <div className="space-y-6">
-          {Object.entries(sections).map(([key, content]) => (
-            content && (
-              <div key={key} className="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 animate-in fade-in slide-in-from-bottom-4">
-                {renderContent(content)}
-              </div>
-            )
-          ))}
-        </div>
+        {report ? (
+          <div className="bg-white rounded-3xl p-8 shadow-xl shadow-slate-200/50 border border-slate-100 animate-in fade-in zoom-in duration-500">
+            <div 
+              className="prose prose-slate max-w-none"
+              dangerouslySetInnerHTML={{ __html: report
+                .replace(/## (.*)/g, '<h2 class="text-2xl font-bold text-slate-800 mt-8 mb-4 border-b pb-2">$1</h2>')
+                .replace(/\*\* (.*)/g, '<b class="text-emerald-700">$1</b>')
+                .replace(/^\* (.*)/gm, '<li class="ml-4 list-disc mb-2 text-slate-600 font-medium">$1</li>')
+                .replace(/\|/g, '') // Упрощенная чистка таблиц для красоты
+              }} 
+            />
+          </div>
+        ) : (
+          <div className="h-64 flex items-center justify-center text-slate-400 font-medium italic">
+            {loading ? 'ИИ анализирует рынки...' : 'Нажмите обновить для загрузки данных'}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-export default App; // ВОТ ЭТА СТРОЧКА ИСПРАВИТ ОШИБКУ БИЛДА
+export default App;
