@@ -4,29 +4,24 @@ export default async function handler(req, res) {
   const countryList = "Azerbaijan, Armenia, Belarus, Bulgaria, Czech Republic, Croatia, Estonia, France, Germany, Great Britain, Georgia, Hungary, Italy, Kazakhstan, Kyrgyzstan, Latvia, Lithuania, Moldova, Netherlands, Poland, Romania, Russia, Slovakia, Tajikistan, Turkmenistan, Ukraine, Uzbekistan";
 
   try {
-    // Используем стабильную модель 2.5 Flash
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`;
-
-    const response = await fetch(apiUrl, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Act as a commodity analyst. Provide a market report for the last 7 days (February 2026) for these countries: ${countryList}. 
-            Focus strictly on: Sunflower oil, Palm oil, Soybean oil, Rapeseed oil, and Brent Crude prices.
-            
+            text: `Gather agricultural market news for February 2026 for these countries: ${countryList}. 
+            Focus on: Sunflower oil, Palm oil, Soybean oil, Rapeseed oil, and Brent Crude.
             Structure:
             1. ## EXECUTIVE SUMMARY
             2. ## PRODUCTION AND TRADE FLOWS
             3. ## POLICY AND REGULATORY CHANGES
-            4. ## CONCLUSIONS
-            
-            Use Google Search to find real-time data.`
+            4. ## CONCLUSIONS`
           }]
         }],
+        // ИСПРАВЛЕНО: Теперь используем актуальное название инструмента
         tools: [{
-          googleSearchRetrieval: {} 
+          google_search: {} 
         }]
       })
     });
@@ -39,8 +34,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const report = data.candidates?.[0]?.content?.parts?.[0]?.text || "No content generated. Try again in a minute.";
-    
+    const report = data.candidates?.[0]?.content?.parts?.[0]?.text || "No report generated.";
     res.status(200).json({ report, chartData: [] });
 
   } catch (e) {
