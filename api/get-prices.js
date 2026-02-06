@@ -1,68 +1,48 @@
 export default async function handler(req, res) {
-  const TAVILY_KEY = process.env.TAVILY_API_KEY;
-  const GROQ_KEY = process.env.VITE_GROQ_API_KEY || process.env.GROQ_API_KEY;
+  // Твоя строка с ключами — теперь норм
+  const GEMINI_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.VITE_GOOGLE_API_KEY;
 
-  const now = new Date();
-  const startLimit = new Date();
-  startLimit.setDate(now.getDate() - 7); // Ровно 7 дней назад
-
-  // Строка для поиска и системного промпта
-  const timeFrame = `from ${startLimit.toDateString()} to ${now.toDateString()}`;
+  const countryList = "Azerbaijan, Armenia, Belarus, Bulgaria, Czech Republic, Croatia, Estonia, France, Germany, Great Britain, Georgia, Hungary, Italy, Kazakhstan, Kyrgyzstan, Latvia, Lithuania, Moldova, Netherlands, Poland, Romania, Russia, Slovakia, Tajikistan, Turkmenistan, Ukraine, Uzbekistan";
 
   try {
-    const searchRes = await fetch("https://api.tavily.com/search", {
+    // 1. Сразу идем к Gemini (она сама и поисковик, и аналитик)
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        api_key: TAVILY_KEY,
-        query: `Agricultural market drivers and news ${timeFrame}: Europe, CIS, Central Asia, Edible Oils, Brent Crude`,
-        search_depth: "advanced",
-        max_results: 20,
-        days: 7 // Системное ограничение Tavily
-      })
-    });
-    
-    const sData = await searchRes.json();
-    
-    // Подготовка данных с явным указанием даты для ИИ
-    const context = sData.results?.map(r => 
-      `[PUBLISHED_DATE: ${r.published_date || 'UNKNOWN'}] SOURCE: ${r.url} | CONTENT: ${r.content}`
-    ).join("\n\n");
-
-    const groqReport = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          { 
-            role: "system", 
-            content: `You are a Commodity Intelligence Terminal. 
-            STRICT TEMPORAL WINDOW: ${timeFrame}.
+        contents: [{
+          parts: [{
+            text: `Gather agricultural market news for the last 7 days for these countries: ${countryList}. 
+            Focus on: Sunflower oil, Palm oil, Soybean oil, Rapeseed oil, and Brent Crude.
             
-            OPERATIONAL RULES:
-            1. MANDATORY: Discard any news labeled 'UNKNOWN' or dated before ${startLimit.toDateString()}.
-            2. MANDATORY: Only 2026 data is allowed.
-            3. Use these exact sections:
-            
+            Structure:
             1. ## EXECUTIVE SUMMARY
             2. ## PRICE DYNAMICS (Status: Pending)
-            3. ## PRODUCTION AND TRADE FLOWS (One key news per relevant country/product)
-            4. ## POLICY AND REGULATORY CHANGES (One key news per relevant country/product)
+            3. ## PRODUCTION AND TRADE FLOWS (Recent news per country/product)
+            4. ## POLICY AND REGULATORY CHANGES
             5. ## CONCLUSIONS
-
-            Tone: Cold, professional, analytical.` 
-          },
-          { role: "user", content: `Context: ${context}` }
-        ],
-        temperature: 0
+            
+            Strictly 2026 data only.`
+          }]
+        }],
+        // Вот эта магия заменяет Tavily
+        tools: [{ google_search_retrieval: {} }]
       })
     });
 
-    const gData = await groqReport.json();
-    res.status(200).json({ report: gData.choices?.[0]?.message?.content, chartData: [] });
+    const data = await response.json();
+    
+    // Проверка на ошибки от Google
+    if (data.error) {
+      throw new Error(data.error.message);
+    }
+
+    const report = data.candidates[0].content.parts[0].text;
+    
+    // Возвращаем результат в том же формате, что ждет твой фронтенд
+    res.status(200).json({ report, chartData: [] });
 
   } catch (e) {
-    res.status(200).json({ report: `## ERROR\n${e.message}` });
+    res.status(200).json({ report: `## CONNECTION ERROR\n${e.message}` });
   }
 }
