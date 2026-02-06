@@ -9,19 +9,35 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Act as a professional Commodity Analyst. 
-            Conduct a DEEP SEARCH and provide a detailed market report for February 2026.
-            COUNTRIES TO COVER: ${countryList}.
+            text: `YOU ARE A SPECIALIZED EDIBLE OILS & OILSEEDS ANALYST. 
+            DATABASE SEARCH DATE: February 6, 2026.
+            
+            TASK: Generate an exhaustive market intelligence report for the LAST 7 DAYS.
+            
+            STRICT FOCUS: Only Oilseeds and Vegetable Oils (Sunflower, Rapeseed, Soybean, Palm).
+            EXCLUDE: All grains (Wheat, Corn, Barley, etc.).
+            
+            REQUIRED REGIONAL COVERAGE:
+            Identify and analyze major news for these specific countries: ${countryList}.
+            
+            FOR EACH REGION (CIS/Russia and EU/UK), YOU MUST FIND AND REPORT:
+            - PRICES: Specific price points for Crude Sunflower Oil (SFO), Rapeseed Oil (RSO), and Soybean Oil (SBO).
+            - SEEDS: Market situation for sunflower seeds, rapeseed, and soybeans (crushing margins, stocks).
+            - LOGISTICS: Export duties (especially Russia/Kazakhstan), port activity in the Black Sea and EU.
+            - BRENT CRUDE: Impact on the Biofuel sector and vegetable oil prices.
 
-            STRUCTURE:
-            1. ## EXECUTIVE SUMMARY (Global trends)
-            2. ## REGIONAL ANALYSIS (Detailed news for: CIS & Russia, European Union, Central Asia)
-            - Mention specific trade flows or crop conditions for at least 5-7 key countries from the list.
-            3. ## PRODUCT SPECIFIC (Sunflower, Palm, Soybean, Rapeseed oils + Brent)
-            4. ## POLICY AND REGULATORY (Taxes, quotas, or bans in the listed countries)
-            5. ## CONCLUSIONS
-
-            STRICT RULE: Focus on the last 7 days. If specific data for a country is missing, mention the regional trend.`
+            REPORT STRUCTURE:
+            ## 1. VEGETABLE OILS GLOBAL OVERVIEW (Brent Crude vs Edible Oils)
+            ## 2. CIS & RUSSIA OILSEEDS SECTOR (Detailed news, duties, and prices)
+            ## 3. EU & UK OILSEEDS SECTOR (Detailed news, crushing activity, and prices)
+            ## 4. PRICE SUMMARY TABLE (List all found prices for oils and seeds)
+            ## 5. POLICY & REGULATORY CHANGES (Bans, quotas, or tax changes in the listed countries)
+            ## 6. SHORT-TERM OUTLOOK
+            
+            STRICT RULES: 
+            - Use only news from February 2026.
+            - Focus strictly on the oilseed complex.
+            - Cold, analytical, professional tone.`
           }]
         }],
         tools: [{ google_search: {} }]
@@ -38,8 +54,7 @@ export default async function handler(req, res) {
 
     const report = data.candidates?.[0]?.content?.parts?.[0]?.text || "No report generated.";
 
-    // Добавляем данные для графиков (Brent и Масло)
-    // В будущем мы научим Gemini вытаскивать эти цифры из текста
+    // Данные для графиков
     const chartData = [
       { date: '01.02', brent: 82.1, oil: 950 },
       { date: '02.02', brent: 83.5, oil: 955 },
