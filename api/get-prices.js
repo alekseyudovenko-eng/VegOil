@@ -4,12 +4,13 @@ export default async function handler(req, res) {
 
   const prompts = {
     summary: "Briefly summarize key global oilseed market events for the last 7 days. Focus on CIS and EU.",
-    prices: "Provide a quick table of current market prices for Sunflower Oil, Rapeseed Oil, Soy Oil, and Brent Crude.",
+    prices: "Provide a quick table of current market prices for Sunflower Oil, Rapeseed Oil, Soy Oil, and Brent Crude. Focus on Feb 2026.",
     policy: "Report any recent export taxes or trade bans on vegetable oils in Russia, Ukraine, and Kazakhstan."
   };
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_KEY}`, {
+    // МЕНЯЕМ МОДЕЛЬ НА 1.5-FLASH
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -20,20 +21,16 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     
-    // ПРОВЕРКА НА ОШИБКУ ОТ GOOGLE
     if (data.error) {
       return res.status(200).json({ 
-        report: `## Ошибка API\n${data.error.message || 'Превышен лимит запросов'}` 
+        report: `## Ошибка API\n${data.error.message}` 
       });
     }
 
-    // БОЛЕЕ ГИБКИЙ ПАРСИНГ ОТВЕТА
     const report = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
     if (!report) {
-      // Если текста нет, проверим, не заблокирован ли контент фильтрами
-      const reason = data.promptFeedback?.blockReason || "Empty response from AI";
-      return res.status(200).json({ report: `## Внимание\nНе удалось получить текст: ${reason}` });
+      return res.status(200).json({ report: "## Ошибка\nМодель не вернула текст. Попробуйте еще раз." });
     }
 
     res.status(200).json({ report });
