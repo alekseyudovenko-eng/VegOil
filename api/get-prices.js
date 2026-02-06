@@ -3,20 +3,22 @@ export default async function handler(req, res) {
   const { section } = req.query;
 
   const prompts = {
-    summary: "Briefly summarize key global oilseed market events for the last 7 days. Focus on CIS and EU.",
+    summary: "Briefly summarize global oilseed market events for the last 7 days. Focus on CIS and EU.",
     prices: "Provide a quick table of current market prices for Sunflower Oil, Rapeseed Oil, Soy Oil, and Brent Crude.",
     policy: "Report any recent export taxes or trade bans on vegetable oils in Russia, Ukraine, and Kazakhstan."
   };
 
+  // ВАЖНО: используем модель gemini-1.5-flash (самая стабильная в v1beta)
+  const model = "gemini-1.5-flash";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
+
   try {
-    // ИСПОЛЬЗУЕМ УНИВЕРСАЛЬНЫЙ ПУТЬ gemini-pro
-    // Это самая стабильная точка входа в v1beta
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_KEY}`, {
+    const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompts[section] || prompts.summary }] }]
-        // Убрали google_search временно, чтобы проверить саму связь с моделью
+        contents: [{ parts: [{ text: prompts[section] || prompts.summary }] }],
+        tools: [{ google_search: {} }] 
       })
     });
 
@@ -24,14 +26,14 @@ export default async function handler(req, res) {
     
     if (data.error) {
       return res.status(200).json({ 
-        report: `## Ошибка API\nКод: ${data.error.code}\nСообщение: ${data.error.message}` 
+        report: `## Ошибка API\nКод: ${data.error.code}\n${data.error.message}` 
       });
     }
 
     const report = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
     if (!report) {
-      return res.status(200).json({ report: "## Пустой ответ\nМодель ответила, но текста нет. Проверь баланс/ключ." });
+      return res.status(200).json({ report: "## Ошибка\nПустой ответ. Возможно, сработали фильтры безопасности Google." });
     }
 
     res.status(200).json({ report });
