@@ -20,10 +20,15 @@
     "jsx": "react-jsx",
     "paths": {
       "@/*": [
-        "./*"
+        "./src/*" 
       ]
     },
     "allowImportingTsExtensions": true,
-    "noEmit": true
-  }
+    "noEmit": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": false 
+  },
+  "include": ["src", "api", "types.ts"],
+  "exclude": ["node_modules"]
 }
