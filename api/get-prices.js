@@ -1,4 +1,32 @@
-const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+export default async function handler(req, res) {
+  const GROQ_KEY = process.env.GROQ_API_KEY;
+  const TAVILY_KEY = process.env.TAVILY_API_KEY;
+
+  // 1. Формируем даты для отчета
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(endDate.getDate() - 10);
+  const formatDate = (d) => d.toISOString().split('T')[0];
+  const dateRange = `${formatDate(startDate)} to ${formatDate(endDate)}`;
+
+  try {
+    // 2. Сбор данных через Tavily
+    const searchRes = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: TAVILY_KEY,
+        query: `oil prices, sunflower rapeseed palm oil duties Russia Ukraine EU Central Asia news ${dateRange}`,
+        search_depth: "advanced",
+        max_results: 10
+      })
+    });
+    
+    const searchData = await searchRes.json();
+    const context = JSON.stringify(searchData.results); // Заполняем контекст для промпта
+
+    // 3. Твой блок с Groq (который ты прислал)
+    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${GROQ_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -6,48 +34,23 @@ const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completion
         messages: [
           { 
             role: "system", 
-            content: `ТЫ — ЖЕСТКИЙ РЫНОЧНЫЙ АНАЛИТИК. Никакой воды. Никаких введений и заключений. 
-            Твоя задача: выдать СУХИЕ ФАКТЫ, ЦИФРЫ И ТАБЛИЦЫ. 
-            ПРОДУКТЫ: Подсолнечное, Рапсовое, Пальмовое масла, Brent, Маргарины, ЗМЖ, Кондитерские жиры.
-            ГЕОГРАФИЯ: 27 стран (РФ, Украина, СНГ, ЕС).` 
+            content: `ТЫ — ЖЕСТКИЙ РЫНОЧНЫЙ АНАЛИТИК...` // Твой текст здесь
           },
           { 
             role: "user", 
-            content: `Контекст поиска: ${context}. 
-            
-            Используя эти данные, СТРОГО ВЫПОЛНИ СЛЕДУЮЩЕЕ:
-            
-            # АНАЛИТИЧЕСКИЙ ОТЧЕТ [${dateRange}]
-            
-            ## 1. ЦЕНОВОЙ МОНИТОР (ТАБЛИЦА)
-            | Продукт | Регион/Базис | Цена (тек. 10 дней) | Динамика (vs начало периода) |
-            |---------|--------------|---------------------|--------------------------|
-            | Подсолнечное масло | FOB Новороссийск | ... | ... |
-            | Рапс (Euronext) | MATIF | ... | ... |
-            | Пальмовое масло | BMD | ... | ... |
-            | Brent | ICE | ... | ... |
-            | ЗМЖ / Маргарин | РФ/СНГ | ... | ... |
-            (Заполни таблицу цифрами из контекста. Если цифры нет — пиши "н/д", но не выдумывай!)
-
-            ## 2. КЛЮЧЕВЫЕ СОБЫТИЯ ПО РЕГИОНАМ
-            ### РОССИЯ И УКРАИНА
-            (Конкретика: Пошлины в рублях, удары по терминалам, задержки в портах. Только факты.)
-
-            ### ЕВРОСОЮЗ И МИР
-            (Цены в Роттердаме, спрос Индии/Китая, биотопливные новости.)
-
-            ### ЦЕНТРАЛЬНАЯ АЗИЯ (Казахстан/Узбекистан)
-            (Пошлины, запреты на вывоз, НДС. Если видел инфу про ЗМЖ/маргарины — пиши сюда.)
-
-            ## 3. РЕГУЛЯТОРНЫЕ ИЗМЕНЕНИЯ (ТАБЛИЦА)
-            | Страна | Мера | Срок действия | Влияние |
-            |--------|------|---------------|---------|
-            (Минимум 3-4 строки по пошлинам и квотам из поиска.)
-
-            ## 4. КРАТКИЙ ПРОГНОЗ
-            (2-3 предложения: рост/падение и почему.)`
+            content: `Контекст поиска: ${context}...` // Твой текст здесь
           }
         ],
-        temperature: 0 // Максимальная точность, ноль фантазии.
+        temperature: 0
       })
     });
+
+    const data = await groqResponse.json();
+    
+    // 4. Отправляем готовый отчет на фронтенд
+    res.status(200).json({ report: data.choices[0].message.content });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
