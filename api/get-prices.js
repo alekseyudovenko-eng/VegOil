@@ -10,41 +10,35 @@ export default async function handler(req, res) {
   const dateRange = `${formatDate(startDate)} to ${formatDate(endDate)}`;
 
   try {
-    // ДЕЛАЕМ ПРИЦЕЛЬНЫЙ ПОИСК ПО БЛОКАМ (чтобы не пропустить мясо)
     const searchTasks = [
-      // Блок 1: РФ и Украина (Пошлины, удары, экспорт)
+      // Блок 1: Сырые масла и Нефть (Базис)
       fetch('https://api.tavily.com/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           api_key: TAVILY_KEY, 
-          query: `Russia sunflower oil export duty February 2026, Ukraine port infrastructure damage oil terminals, FOB prices Black Sea`, 
+          query: `Sunflower, Rapeseed, Palm oil prices and Brent crude oil news ${dateRange} Russia, Ukraine, EU`, 
           search_depth: "advanced" 
         })
       }).then(r => r.json()),
 
-      // Блок 2: ЕС и Рапс (RED III, цены Euronext)
+      // Блок 2: Маргарины и Спецжиры (Твоя специфика)
       fetch('https://google.serper.dev/search', {
         method: 'POST',
         headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: `Euronext rapeseed prices February 2026 EU RED III standards impact`, gl: "us" })
-      }).then(r => r.json()),
-
-      // Блок 3: Центральная Азия (Казахстан, Узбекистан - законы, пошлины)
-      fetch('https://google.serper.dev/search', {
-        method: 'POST',
-        headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: `Казахстан пошлина подсолнечник Узбекистан импорт масла февраль 2026`, gl: "ru", hl: "ru" })
-      }).then(r => r.json()),
-
-      // Блок 4: Мировые рынки (Индия, Китай, Пальма, Нефть)
-      fetch('https://api.tavily.com/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          api_key: TAVILY_KEY, 
-          query: `India sunflower oil import volume Feb 2026, BMD palm oil futures, Brent oil price dynamics`, 
-          max_results: 5 
+          q: `рынок промышленных маргаринов и спецжиров ЗМЖ кондитерские жиры пошлины новости ${dateRange} РФ Казахстан Узбекистан`, 
+          gl: "ru" 
+        })
+      }).then(r => r.json()),
+
+      // Блок 3: Регуляторика СНГ и Европы
+      fetch('https://google.serper.dev/search', {
+        method: 'POST',
+        headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          q: `export duties and trade regulations vegetable oils Feb 2026 Russia Ukraine Kazakhstan EU`, 
+          gl: "us" 
         })
       }).then(r => r.json())
     ];
@@ -63,45 +57,29 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `Ты — эксперт-аналитик рынка масличных. Твой отчет должен быть МАКСИМАЛЬНО подробным. 
-            Используй цифры, проценты, конкретные названия компаний и портов из контекста. 
-            Если данных много — пиши развернуто по каждой стране. Не жалей текста.` 
+            content: `Ты — эксперт-аналитик Agro-Oil. Твоя задача — составить подробный отчет за 10 дней (${dateRange}).
+            СПИСОК СТРАН: Azerbaijan, Armenia, Belarus, Bulgaria, Czech Republic, Croatia, Estonia, France, Germany, Great Britain, Georgia, Hungary, Italy, Kazakhstan, Kyrgyzstan, Latvia, Lithuania, Moldova, Netherlands, Poland, Romania, Russia, Slovakia, Tajikistan, Turkmenistan, Ukraine, Uzbekistan.
+            ПРОДУКТЫ: Растительные масла (подсолнечное, рапсовое, соевое, пальмовое), Нефть Brent, Маргариновая продукция, Жиры специального назначения (ЗМЖ, кондитерские жиры).` 
           },
           { 
             role: "user", 
             content: `Контекст: ${context}. 
-            Сформируй ГЛУБОКИЙ аналитический отчет за 10 дней (${dateRange}) для 27 стран (список в твоей памяти).
-            
-            СТРУКТУРА:
-            # АНАЛИТИЧЕСКИЙ ОТЧЕТ ПО РЫНКУ РАСТИТЕЛЬНЫХ МАСЕЛ И ЖИРОВ
-            (Подробная шапка)
-
-            ## EXECUTIVE SUMMARY
-            (Мировой рынок, Brent, SAF/HVO, макроэкономика)
-
-            ## I. MARKET ANALYSIS BY KEY REGIONS
-            - **Russia**: (Подробно: пошлина, FOB Новороссийск, темпы отгрузок, крупнейшие покупатели)
-            - **Ukraine**: (Подробно: статус терминалов в портах Одесса/Черноморск, переработка, логистика)
-            - **European Union**: (Рапсовое масло, биодизель, пошлины, цены FOB Six Ports)
-            - **Central Asia & Caucasus**: (Регуляторика Казахстана, Узбекистана, Армении, Грузии - всё что найдешь)
-
-            ## II. PRICE MONITORING (Table 1)
-            (Таблица с динамикой. Минимум 6-8 строк с разными базисами)
-
-            ## III. REGULATORY CHANGES (Table 3)
-            (Таблица всех мер за 10 дней)
-
-            ## IV. CONCLUSIONS (Развернутый прогноз)`
+            Сформируй отчет:
+            1. Заголовок с периодом и списком всех 27 стран.
+            2. Анализ по регионам (Россия, Украина, ЕС, Центральная Азия/Кавказ).
+            3. Цены и динамика по ВСЕМ продуктам (включая спецжиры и маргарины).
+            4. Изменения в пошлинах и законах.
+            5. Выводы.`
           }
         ],
-        temperature: 0.2
+        temperature: 0.1
       })
     });
 
     const data = await groqResponse.json();
-    res.status(200).json({ report: data.choices?.[0]?.message?.content || "Ошибка данных" });
+    res.status(200).json({ report: data.choices?.[0]?.message?.content || "Ошибка генерации текста" });
 
   } catch (e) {
-    res.status(200).json({ report: `Ошибка: ${e.message}` });
+    res.status(200).json({ report: `Системная ошибка: ${e.message}` });
   }
 }
