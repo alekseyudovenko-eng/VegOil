@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown'; // Импортируем нормальный парсер
+import remarkGfm from 'remark-gfm'; // Импортируем поддержку таблиц
 
 function App() {
   const [report, setReport] = useState('');
@@ -37,15 +39,12 @@ function App() {
 
         {report ? (
           <div className="bg-white rounded-3xl p-8 shadow-xl shadow-slate-200/50 border border-slate-100 animate-in fade-in zoom-in duration-500">
-            <div 
-              className="prose prose-slate max-w-none"
-              dangerouslySetInnerHTML={{ __html: report
-                .replace(/## (.*)/g, '<h2 class="text-2xl font-bold text-slate-800 mt-8 mb-4 border-b pb-2">$1</h2>')
-                .replace(/\*\* (.*)/g, '<b class="text-emerald-700">$1</b>')
-                .replace(/^\* (.*)/gm, '<li class="ml-4 list-disc mb-2 text-slate-600 font-medium">$1</li>')
-                .replace(/\|/g, '') // Упрощенная чистка таблиц для красоты
-              }} 
-            />
+            {/* ВМЕСТО dangerouslySetInnerHTML ИСПОЛЬЗУЕМ ReactMarkdown */}
+            <div className="prose prose-slate max-w-none">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {report}
+              </ReactMarkdown>
+            </div>
           </div>
         ) : (
           <div className="h-64 flex items-center justify-center text-slate-400 font-medium italic">
