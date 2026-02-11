@@ -16,16 +16,10 @@ export interface MergedPriceData extends PriceData {
 
 export interface GroundingSource {
   title?: string;
-  uri?: string;
+  url?: string; // Заменили uri на url, так как Tavily присылает url
 }
 
-export interface MarketReport {
-  summary: string;
-  topNews: { commodity: string; headline: string; content: string }[];
-  priceTrends: { commodity: string; trend: 'up' | 'down' | 'stable' | 'neutral'; details: string }[];
-  regionalHighlights?: { region: string; events: string }[];
-  tradeTable: { country: string; commodity: string; volume: string; volumeType: string; status: string }[];
-  policyUpdates: { country: string; update: string }[];
-}
+// Наш новый упрощенный тип отчета
+export type MarketReport = string;
 
 export type ComparisonOption = 'NONE' | 'SBO' | 'PREVIOUS_PERIOD';
