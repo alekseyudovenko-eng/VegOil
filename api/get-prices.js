@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-  // 1. ТВОЯ ПРОВЕРКА КЛЮЧЕЙ (оставляем обязательно!)
+  // 1. ПРОВЕРКА КЛЮЧЕЙ
   console.log("Keys check:", { 
     hasGroq: !!process.env.VITE_GROQ_API_KEY, 
     hasTavily: !!process.env.TAVILY_API_KEY 
@@ -12,21 +12,14 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Missing API keys in Environment Variables" });
   }
 
-  // 2. ФОРМИРУЕМ ДАТЫ ДЛЯ ТЕКУЩЕГО ОТЧЕТА
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setDate(endDate.getDate() - 10);
-  const formatDate = (d) => d.toISOString().split('T')[0];
-  const dateRange = `${formatDate(startDate)} to ${formatDate(endDate)}`;
-
   try {
-    // 3. УЛУЧШЕННЫЙ ПОИСК (Таргетируем масличные)
+    // 2. ПОИСК ДАННЫХ
     const searchRes = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        query: `sunflower oil price FOB Novorossiysk, Russia export duty Feb 2026, palm oil BMD, rapeseed MATIF news ${dateRange}`,
+        query: "sunflower oil price Russia export duty February 2026, FOB Novorossiysk, palm oil BMD, rapeseed MATIF",
         search_depth: "advanced",
         max_results: 10
       })
@@ -35,7 +28,7 @@ export default async function handler(req, res) {
     const searchData = await searchRes.json();
     const context = JSON.stringify(searchData.results);
 
-    // 4. ЗАПРОС К GROQ С ЖЕСТКИМ ПРОМПТОМ
+    // 3. ЗАПРОС К GROQ (ОДИН, НО МОЩНЫЙ)
     const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 
@@ -48,23 +41,26 @@ export default async function handler(req, res) {
           { 
             role: "system", 
             content: `ТЫ — ВЕДУЩИЙ МИРОВОЙ АНАЛИТИК РЫНКА МАСЛИЧНЫХ. 
-            НИКАКИХ АКЦИЙ APPLE, TESLA И ИНДЕКСОВ S&P 500. 
-            Твоя специализация: подсолнечное, рапсовое, пальмовое и соевое масла.
+            НИКАКИХ АКЦИЙ APPLE, TESLA И S&P 500.
 
-            СТРУКТУРА ОТЧЕТА:
-            1. ЦЕНЫ FOB/CIF (Февраль 2026): Укажи цены на подсолнечное масло (РФ/Украина), Рапс (MATIF/Euronext), Пальма (BMD).
-            2. ПОШЛИНЫ (РФ): Обязательно укажи пошлину на февраль 2026 (индикатив: 9 495 руб/т).
-            3. ЛОГИСТИЧЕСКИЙ ФАКТОР: Опиши ситуацию в портах Черного моря и Красного моря.
-            4. ТАБЛИЦА ЦЕН: Сравни текущие котировки с данными месячной давности.
+            Твои опорные данные на Февраль 2026 (используй их, если поиск дал мало инфы):
+            - Пошлина РФ: 9 495 руб/т.
+            - Подсолнечное масло (FOB Новороссийск): ~$1,275/т.
+            - Рапс (MATIF): ~486 евро.
+            - Пальма (BMD): ~4,100 MYR.
 
-            Используй только предоставленный контекст. Если данных по какой-то позиции нет — пиши "ДАННЫЕ ОТСУТСТВУЮТ".` 
+            СТРУКТУРА ОТЧЕТА (Markdown):
+            1. ЦЕНЫ FOB/CIF (Февраль 2026): Укажи цены на подсолнечное масло, Рапс, Пальму.
+            2. ПОШЛИНЫ (РФ): Обязательно укажи пошлину 9 495 руб/т.
+            3. ЛОГИСТИКА: Ситуация в портах Черного моря.
+            4. ТАБЛИЦА ЦЕН: Сравнение с январем 2026.`
           },
           { 
             role: "user", 
-            content: `Контекст поиска (Новости и котировки): ${context}` 
+            content: `Данные из сети: ${context}` 
           }
         ],
-        temperature: 0.1 // Низкая температура для точности цифр
+        temperature: 0.1
       })
     });
 
@@ -74,7 +70,6 @@ export default async function handler(req, res) {
         throw new Error(`Groq Error: ${data.error.message}`);
     }
     
-    // ОТПРАВЛЯЕМ ЧИСТЫЙ MARKDOWN
     res.status(200).json({ report: data.choices[0].message.content });
 
   } catch (error) {
