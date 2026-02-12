@@ -3,17 +3,14 @@ export default async function handler(req, res) {
   const GROQ_KEY = process.env.VITE_GROQ_API_KEY;
   const TAVILY_KEY = process.env.TAVILY_API_KEY;
 
-  // Объединяем все настройки в ОДИН объект
   const configs = {
     news: {
       query: "vegetable oils market news Feb 2026: EU, Russia, Ukraine, Kazakhstan, Uzbekistan, Turkey, China, India, Malaysia, Indonesia. Specialty fats and margarine industry.",
-      system: "ТЫ — ГЛАВНЫЙ АНАЛИТИК. Сводка за 10 дней по регионам: ЕС, РФ, Украина, Казахстан, Узбекистан, Турция, Китай, Индия. Обязательно: новости по спецжирам и маргаринам."
+      system: "ТЫ — ГЛАВНЫЙ АНАЛИТИК. Сводка по регионам: ЕС, РФ, Украина, Казахстан, Узбекистан, Турция, Китай, Индия. Обязательно: новости по спецжирам и маргаринам."
     },
     prices: {
-      query: "actual rates USD/RUB, EUR/RUB, USD/UZS, USD/KZT, Brent oil, MATIF rapeseed, sunflower oil FOB Novorossiysk February 12 2026",
-      // Ограничиваем только финансовыми сайтами для точности
-      domains: ["investing.com", "tradingview.com", "reuters.com", "bloomberg.com", "cbr.ru", "moex.com", "tradingeconomics.com"],
-      system: "ТЫ — ФИНАНСОВЫЙ ТЕРМИНАЛ. Выдай курсы валют (РФ, УЗ, КЗ, ТУР, КИТ, ЕС) и котировки масел. Если видишь евро по 60 или старые цены — ИГНОРИРУЙ. Сегодня 12.02.2026. Будь точен."
+      query: "actual rates USD/RUB, EUR/RUB, USD/UZS, USD/KZT, Brent oil price, MATIF rapeseed, sunflower oil FOB Novorossiysk February 12 2026",
+      system: "ТЫ — ФИНАНСОВЫЙ ТЕРМИНАЛ. Выдай курсы валют (РФ, УЗ, КЗ, ТУР, КИТ, ЕС) и котировки масел. Используй таблицы. Сегодня 12.02.2026."
     },
     policy: {
       query: "EU import duty edible oils Feb 2026, Russia export duty sunflower oil, Uzbekistan VAT, India duty news, Turkey trade regulations",
@@ -32,7 +29,7 @@ export default async function handler(req, res) {
   const current = configs[category] || configs.news;
 
   try {
-    // 1. ПОИСК С ФИЛЬТРОМ ПО ДАТЕ (3 ДНЯ)
+    // 1. ПОИСК С ФИЛЬТРОМ 14 ДНЕЙ
     const searchRes = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -40,14 +37,13 @@ export default async function handler(req, res) {
         api_key: TAVILY_KEY,
         query: current.query,
         search_depth: "advanced",
-        include_domains: current.domains || [], 
-        max_results: 12,
-        days: 3 // Ищем только свежак!
+        max_results: 20, 
+        days: 14 // Установили окно в 2 недели
       })
     });
     const searchData = await searchRes.json();
 
-    // 2. ГЕНЕРАЦИЯ С НУЛЕВОЙ ТЕМПЕРАТУРОЙ (БЕЗ ФАНТАЗИЙ)
+    // 2. ГЕНЕРАЦИЯ
     const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${GROQ_KEY}`, 'Content-Type': 'application/json' },
@@ -57,11 +53,12 @@ export default async function handler(req, res) {
           { 
             role: "system", 
             content: `${current.system} 
-            ВАЖНО: Пиши строго на русском. Используй Markdown (| для таблиц). Сегодня 12 февраля 2026 года. Если данных нет — пиши 'НЕТ ДАННЫХ'. За галлюцинации (типа евро по 60) — позор.` 
+            ВАЖНО: Пиши строго на русском. Используй Markdown (| для таблиц). Сегодня 12 февраля 2026 года. 
+            Если данных нет — пиши 'ДАННЫЕ ОТСУТСТВУЮТ'. За галлюцинации и старые курсы — бан.` 
           },
           { role: "user", content: `Результаты поиска: ${JSON.stringify(searchData.results)}` }
         ],
-        temperature: 0.0 // Исключаем творчество
+        temperature: 0.1
       })
     });
 
