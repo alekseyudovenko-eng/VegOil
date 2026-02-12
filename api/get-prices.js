@@ -5,31 +5,30 @@ export default async function handler(req, res) {
 
   const configs = {
     news: {
-      query: "vegetable oils market news Feb 2026: EU, Russia, Ukraine, Kazakhstan, Uzbekistan, Turkey, China, India, Malaysia, Indonesia. Specialty fats and margarine industry.",
-      system: "ТЫ — ГЛАВНЫЙ АНАЛИТИК. Сводка по регионам: ЕС, РФ, Украина, Казахстан, Узбекистан, Турция, Китай, Индия. Обязательно: новости по спецжирам и маргаринам."
+      query: "vegetable oils market news Russia EU Ukraine Kazakhstan Uzbekistan Turkey China India Malaysia Indonesia specialty fats margarine Feb 2026",
+      system: "ТЫ — АНАЛИТИК. Твоя задача — собрать ВСЕ важные новости и события за ПОСЛЕДНИЕ 14 ДНЕЙ. Не ограничивайся сегодняшним днем. Группируй по странам."
     },
     prices: {
-      query: "actual rates USD/RUB, EUR/RUB, USD/UZS, USD/KZT, Brent oil price, MATIF rapeseed, sunflower oil FOB Novorossiysk February 12 2026",
-      system: "ТЫ — ФИНАНСОВЫЙ ТЕРМИНАЛ. Выдай курсы валют (РФ, УЗ, КЗ, ТУР, КИТ, ЕС) и котировки масел. Используй таблицы. Сегодня 12.02.2026."
+      query: "price dynamics sunflower oil palm oil rapeseed Brent currency rates USD/RUB UZS KZT CNY TRY Feb 2026 last 14 days",
+      system: "ТЫ — ФИНАНСОВЫЙ ЭКСПЕРТ. Покажи динамику цен и курсов за ПОСЛЕДНИЕ 14 ДНЕЙ. Сделай таблицы. Если видишь изменение цены за этот период — отрази это."
     },
     policy: {
-      query: "EU import duty edible oils Feb 2026, Russia export duty sunflower oil, Uzbekistan VAT, India duty news, Turkey trade regulations",
-      system: "ТЫ — ЭКСПЕРТ ПО РЕГУЛИРОВАНИЮ. Анализ пошлин, налогов и квот: ЕС, РФ, Украина, КЗ, УЗ, Турция, Индия."
+      query: "changes in export import duties taxes regulations edible oils Russia EU Uzbekistan Kazakhstan India Turkey last 14 days",
+      system: "ТЫ — ЭКСПЕРТ ПО ВЭД. Собери все изменения в регуляторке, пошлинах и налогах, которые произошли или обсуждались за ПОСЛЕДНИЕ 14 ДНЕЙ."
     },
     trade: {
-      query: "production export import stocks 2026: EU, Russia, Ukraine, Kazakhstan, Uzbekistan, China, India, Indonesia, Malaysia. S&D balance.",
-      system: "ТЫ — СПЕЦИАЛИСТ ПО ТОРГОВЫМ ПОТОКАМ. Дай цифры: Производство, Экспорт, Импорт, Остатки по списку стран."
+      query: "vegetable oil trade flows export import production stocks statistics Feb 2026 Russia Ukraine Kazakhstan Uzbekistan EU China",
+      system: "ТЫ — АНАЛИТИК РЫНКА. Дай сводку по торговым балансам и логистике на основе данных за последние 14 дней."
     },
     summary: {
-      query: "global vegetable oil market analysis Feb-March 2026 forecast EU Russia China India",
-      system: "ТЫ — СТРАТЕГИЧЕСКИЙ АНАЛИТИК. Executive Summary и прогноз на месяц."
+      query: "summary of vegetable oil market trends and outlook February 2026",
+      system: "ТЫ — СТРАТЕГ. Сделай Executive Summary главных событий и трендов за ПОСЛЕДНИЕ 14 ДНЕЙ."
     }
   };
 
   const current = configs[category] || configs.news;
 
   try {
-    // 1. ПОИСК С ФИЛЬТРОМ 14 ДНЕЙ
     const searchRes = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -37,13 +36,12 @@ export default async function handler(req, res) {
         api_key: TAVILY_KEY,
         query: current.query,
         search_depth: "advanced",
-        max_results: 20, 
-        days: 14 // Установили окно в 2 недели
+        max_results: 20,
+        days: 14 // Жестко ищем за 2 недели
       })
     });
     const searchData = await searchRes.json();
 
-    // 2. ГЕНЕРАЦИЯ
     const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${GROQ_KEY}`, 'Content-Type': 'application/json' },
@@ -52,13 +50,11 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `${current.system} 
-            ВАЖНО: Пиши строго на русском. Используй Markdown (| для таблиц). Сегодня 12 февраля 2026 года. 
-            Если данных нет — пиши 'ДАННЫЕ ОТСУТСТВУЮТ'. За галлюцинации и старые курсы — бан.` 
+            content: `${current.system} Пиши строго на русском. Используй Markdown. Сегодня 12 февраля 2026. Твоя цель — МАКСИМУМ информации за последние 14 дней. Не смей писать 'нет данных', если в тексте есть хоть какие-то цифры или новости за февраль.` 
           },
-          { role: "user", content: `Результаты поиска: ${JSON.stringify(searchData.results)}` }
+          { role: "user", content: `Данные поиска: ${JSON.stringify(searchData.results)}` }
         ],
-        temperature: 0.1
+        temperature: 0.1 
       })
     });
 
