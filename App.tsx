@@ -1,15 +1,21 @@
 import { useState, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown'; // Импортируем нормальный парсер
-import remarkGfm from 'remark-gfm'; // Импортируем поддержку таблиц
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+type Page = 'news' | 'prices' | 'policy' | 'trade' | 'summary';
 
 function App() {
+  const [activePage, setActivePage] = useState<Page>('news');
   const [report, setReport] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const fetchReport = async () => {
+  // Запрос данных под конкретную страницу
+  const fetchData = async (page: Page) => {
     setLoading(true);
+    setReport(''); // Очищаем старый отчет
     try {
-      const res = await fetch('/api/get-prices');
+      // Отправляем тип страницы на бэкенд
+      const res = await fetch(`/api/get-prices?category=${page}`);
       const data = await res.json();
       setReport(data.report);
     } catch (e) {
@@ -20,38 +26,47 @@ function App() {
   };
 
   useEffect(() => {
-    fetchReport();
-  }, []);
+    fetchData(activePage);
+  }, [activePage]);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] p-4 md:p-12 font-sans text-slate-900">
-      <div className="max-w-4xl mx-auto">
-        <header className="flex justify-between items-center mb-12">
-          <h1 className="text-3xl font-black tracking-tight">Agro<span className="text-emerald-600">Oil</span> Monitor</h1>
-          <button 
-            onClick={fetchReport} 
-            disabled={loading}
-            className="bg-emerald-600 text-white px-6 py-2 rounded-full font-bold hover:bg-emerald-700 transition disabled:opacity-50"
+    <div className="min-h-screen bg-[#f8fafc] flex">
+      {/* САЙДБАР (Навигация) */}
+      <nav className="w-64 bg-slate-900 text-white p-6 flex flex-col gap-4">
+        <h1 className="text-xl font-bold text-emerald-400 mb-8">AgroOil Terminal</h1>
+        {[
+          { id: 'news', label: '1. Главная: Новости' },
+          { id: 'prices', label: '2. Цены' },
+          { id: 'policy', label: '3. Регуляторика' },
+          { id: 'trade', label: '4. Торговые потоки' },
+          { id: 'summary', label: '5. Резюме' },
+        ].map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setActivePage(item.id as Page)}
+            className={`text-left p-3 rounded-lg transition ${activePage === item.id ? 'bg-emerald-600' : 'hover:bg-slate-800'}`}
           >
-            {loading ? 'Обновление...' : 'Обновить отчет'}
+            {item.label}
           </button>
-        </header>
+        ))}
+      </nav>
 
-        {report ? (
-          <div className="bg-white rounded-3xl p-8 shadow-xl shadow-slate-200/50 border border-slate-100 animate-in fade-in zoom-in duration-500">
-            {/* ВМЕСТО dangerouslySetInnerHTML ИСПОЛЬЗУЕМ ReactMarkdown */}
+      {/* КОНТЕНТ */}
+      <main className="flex-1 p-8 overflow-auto">
+        {loading ? (
+          <div className="h-full flex items-center justify-center">
+             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-emerald-600"></div>
+          </div>
+        ) : (
+          <div className="max-w-5xl mx-auto bg-white p-10 rounded-2xl shadow-sm border border-slate-200">
             <div className="prose prose-slate max-w-none">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {report}
               </ReactMarkdown>
             </div>
           </div>
-        ) : (
-          <div className="h-64 flex items-center justify-center text-slate-400 font-medium italic">
-            {loading ? 'ИИ анализирует рынки...' : 'Нажмите обновить для загрузки данных'}
-          </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }
