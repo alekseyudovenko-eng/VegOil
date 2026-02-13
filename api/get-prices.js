@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
   const { category } = req.query;
   const SERPER_KEY = process.env.SERPER_API_KEY; // Ключ от serper.dev
-  const GROQ_KEY = process.env.GROQ_API_KEY;     // Ключ от Groq
+  const GROQ_KEY = process.env.VITE_GROQ_API_KEY;     // Ключ от Groq
 
   if (!SERPER_KEY || !GROQ_KEY) {
     return res.status(200).json({ report: "### Ошибка: Не настроены ключи SERPER_API_KEY или GROQ_API_KEY" });
