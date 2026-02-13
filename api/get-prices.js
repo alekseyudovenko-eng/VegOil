@@ -1,8 +1,8 @@
 export default async function handler(req, res) {
   const { category } = req.query;
-  const SERPER_KEY = process.env.SERPER_API_KEY;
-  const GROQ_KEY = process.env.GROQ_API_KEY;
-
+  const SERPER_KEY = process.env.SERPER_API_KEY || process.env.VITE_SERPER_API_KEY;
+  const GROQ_KEY = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
+  
   if (!SERPER_KEY || !GROQ_KEY) return res.status(200).json({ report: "### Config Error." });
 
   const today = new Date();
