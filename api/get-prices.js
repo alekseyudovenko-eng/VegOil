@@ -7,28 +7,29 @@ export default async function handler(req, res) {
     return res.status(200).json({ report: "### Config Error: API keys missing." });
   }
 
-  // 1. DATE SETUP (Last 14 days)
+  // 1. DATE SETUP
   const today = new Date();
   const fourteenDaysAgo = new Date(today);
   fourteenDaysAgo.setDate(today.getDate() - 14);
   const dateString = fourteenDaysAgo.toISOString().split('T')[0];
 
-  // 2. MULTILINGUAL SEARCH CONFIGS
+  // 2. SEARCH CONFIGS
   const configs = {
     news: {
-      query: `(vegetable oils OR specialty fats OR margarine OR "oil market") (Russia OR Uzbekistan OR Kazakhstan OR Europe OR India) after:${dateString}`,
-      system: "You are a Global Analyst. Create a report based on provided English and Russian sources. Focus on market trends, logistics, and production."
+      query: `vegetable oil specialty fats margarine market news Russia Uzbekistan Kazakhstan Europe India`,
+      system: "You are a Global Analyst. Create a detailed market report. Focus on oils, margarines, and specialty fats (CBE, CBS, CBR)."
     },
     prices: {
-      query: `(price OR FOB OR quotes) (sunflower oil OR palm oil OR rapeseed OR "specialty fats") after:${dateString}`,
-      system: "You are a Price Analyst. Extract all price data and quotes. Create clear Markdown tables."
+      query: `sunflower oil palm oil price quotes February 2026`,
+      system: "You are a Price Analyst. Create Markdown tables for current prices and rates."
     },
     policy: {
-      query: `(export duty OR import tax OR regulations) (oil OR fats) (Russia OR EU OR Uzbekistan OR Kazakhstan) after:${dateString}`,
+      query: `export duty import tax vegetable oil Russia EU Uzbekistan`,
       system: "You are a Trade Policy Expert. Summarize regulatory changes."
     }
   };
 
+  // ЭТА СТРОЧКА БЫЛА ПРОПУЩЕНА:
   const current = configs[category] || configs.news;
 
   try {
@@ -38,7 +39,8 @@ export default async function handler(req, res) {
       headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         q: current.query,
-        num: 30
+        num: 20,
+        tbs: "qdr:w2" 
       })
     });
 
