@@ -7,89 +7,67 @@ export default async function handler(req, res) {
     return res.status(200).json({ report: "### Config Error: API keys missing." });
   }
 
-  // 1. DATE SETUP
   const today = new Date();
   const fourteenDaysAgo = new Date(today);
   fourteenDaysAgo.setDate(today.getDate() - 14);
   const dateString = fourteenDaysAgo.toISOString().split('T')[0];
 
-  // 2. SEARCH CONFIGS
   const configs = {
     news: {
-      query: `vegetable oil specialty fats margarine market news Russia Uzbekistan Kazakhstan Europe India`,
-      system: "You are a Global Analyst. Create a detailed market report. Focus on oils, margarines, and specialty fats (CBE, CBS, CBR)."
+      query: `vegetable oils fats market logistics finance news Russia Ukraine Europe Uzbekistan Kazakhstan Caucasus Global trends February 2026`,
+      system: `You are a Senior Strategic Analyst. Provide a RECENT NEWS DIGEST (last 14 days) structured by regions.
+      1. RUSSIA & CIS (Focus on export quotas, domestic prices, logistics in Azov/Black Sea).
+      2. CENTRAL ASIA & CAUCASUS (Uzbekistan, Kazakhstan, Georgia, Azerbaijan: import trends, local production, regional logistics).
+      3. EUROPE (MATIF prices, EU policy, port situation, logistics).
+      4. GLOBAL CONTEXT (Global benchmarks: Palm Oil, Soy, Crude oil impact).
+      REQUIREMENTS: Mention specific facts on logistics, finance, and specialty fats (CBE, CBS). Use bullet points.`
     },
     prices: {
-      query: `sunflower oil palm oil price quotes February 2026`,
-      system: "You are a Price Analyst. Create Markdown tables for current prices and rates."
+      query: `sunflower palm rapeseed oil price quotes February 2026 market analysis`,
+      system: "You are a Price Analyst. Extract specific price data and format into Markdown tables."
     },
     policy: {
-      query: `export duty import tax vegetable oil Russia EU Uzbekistan`,
-      system: "You are a Trade Policy Expert. Summarize regulatory changes."
+      query: `export import duties regulations vegetable oils fats Russia EU Uzbekistan February 2026`,
+      system: "You are a Regulatory Expert. List changes in duties and laws from the last 14 days."
     }
   };
 
-  // ЭТА СТРОЧКА БЫЛА ПРОПУЩЕНА:
   const current = configs[category] || configs.news;
 
   try {
-    // 3. SEARCH VIA SERPER
     const serperRes = await fetch('https://google.serper.dev/search', {
       method: 'POST',
       headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        q: current.query,
-        num: 20,
-        tbs: "qdr:w2" 
-      })
+      body: JSON.stringify({ q: current.query, num: 40, tbs: "qdr:w2" })
     });
 
     const searchData = await serperRes.json();
-
-    // 4. PARSE SNIPPETS
     const snippets = [
       ...(searchData.organic || []).map(res => `${res.title}: ${res.snippet}`),
-      ...(searchData.news || []).map(res => `${res.title}: ${res.snippet}`),
-      ...(searchData.answerBox ? [JSON.stringify(searchData.answerBox)] : [])
+      ...(searchData.news || []).map(res => `${res.title}: ${res.snippet}`)
     ].join("\n\n");
 
     if (!snippets || snippets.length < 100) {
-      return res.status(200).json({ report: `### No significant data found for the query since ${dateString}.` });
+      return res.status(200).json({ report: `### No significant news found since ${dateString}.` });
     }
 
-    // 5. GENERATE REPORT VIA GROQ
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${GROQ_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         messages: [
-          { 
-            role: "system", 
-            content: `${current.system} 
-            INSTRUCTIONS:
-            1. Language: Professional English.
-            2. Period: Last 14 days.
-            3. Mandatory: Detailed breakdown for Margarines, Specialty Fats (CBE, CBS, CBR), and Shortenings.
-            4. Formatting: Use Markdown headers and tables for prices.
-            5. Content: Analytical, data-driven, no fluff.` 
-          },
-          { role: "user", content: `Search results (14-day window): \n${snippets}` }
+          { role: "system", content: `${current.system} Language: Professional English. Period: Last 14 days.` },
+          { role: "user", content: `Search results: \n${snippets}` }
         ],
         temperature: 0.1
       })
     });
 
     const aiData = await groqRes.json();
-    
-    if (aiData.error) {
-      throw new Error(aiData.error.message);
-    }
-
     res.status(200).json({ report: aiData.choices[0].message.content });
 
   } catch (error) {
-    console.error("Handler Error:", error);
     res.status(200).json({ report: `### System Error: ${error.message}` });
   }
 }
