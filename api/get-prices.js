@@ -1,71 +1,76 @@
 export default async function handler(req, res) {
   const { category } = req.query;
-  const SERPER_KEY = process.env.SERPER_API_KEY; // Ключ от serper.dev
-  const GROQ_KEY = process.env.VITE_GROQ_API_KEY;     // Ключ от Groq
+  const SERPER_KEY = process.env.SERPER_API_KEY || process.env.VITE_SERPER_API_KEY;
+  const GROQ_KEY = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
 
   if (!SERPER_KEY || !GROQ_KEY) {
-    return res.status(200).json({ report: "### Ошибка: Не настроены ключи SERPER_API_KEY или GROQ_API_KEY" });
+    return res.status(200).json({ report: "### Config Error: API keys missing." });
   }
 
+  // 1. DATE SETUP (Last 14 days)
+  const today = new Date();
+  const fourteenDaysAgo = new Date(today);
+  fourteenDaysAgo.setDate(today.getDate() - 14);
+  const dateFilter = `after:${fourteenDaysAgo.toISOString().split('T')[0]}`;
+
+  // 2. ENGLISH SEARCH CONFIGS
   const configs = {
     news: {
-      query: "новости рынок подсолнечное масло февраль 2026",
-      system: "ТЫ — АНАЛИТИК. Собери только свежие новости. Игнорируй мусор."
+      query: `vegetable oils fats market report margarine specialty fats shortening news logistics Europe CIS Central Asia Caucasus Russia Ukraine ${dateFilter}`,
+      system: "You are a Senior Market Analyst. Provide a professional market review for the last 14 days. Cover oils, margarines, specialty fats (CBE, CBS, CBR), and shortenings. Focus on Europe, CIS, Central Asia, and Caucasus."
     },
     prices: {
-      query: "цена подсолнечное масло FOB, MATIF rapeseed, Brent oil, курсы валют USD RUB UZS KZT февраль 2026",
-      system: "ТЫ — ЭКСПЕРТ. Найди цены и курсы. Сформируй таблицы. Укажи даты."
+      query: `sunflower oil price FOB, BMD Palm Oil, MATIF rapeseed, margarine shortening market prices Europe Asia ${dateFilter}`,
+      system: "You are a Financial Analyst. Collect price quotes and market rates from the last 14 days. Focus on oils and processed fats. Output data in Markdown tables."
+    },
+    policy: {
+      query: `vegetable oil import export duties taxes regulations Russia EU India Uzbekistan Kazakhstan ${dateFilter}`,
+      system: "You are a Trade Policy Expert. Summarize changes in duties, quotas, and trade regulations for the oil and fat industry in the specified regions."
     }
-    // ... остальные категории по аналогии
   };
 
   const current = configs[category] || configs.news;
 
   try {
-    // 1. ЗАПРОС К SERPER (Эмуляция поиска Google)
+    // 3. SEARCH (Global English Focus)
     const serperRes = await fetch('https://google.serper.dev/search', {
       method: 'POST',
-      headers: {
-        'X-API-KEY': SERPER_KEY,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         q: current.query,
-        gl: "ru", // Ищем по России/СНГ
-        hl: "ru", // Результаты на русском
-        num: 10   // Берем топ-10 результатов
+        num: 25,
+        tbs: "qdr:w2" // Filter for last 2 weeks
       })
     });
 
     const searchData = await serperRes.json();
-
-    // Собираем полезную инфу из выдачи Google
     const snippets = [
-      ...(searchData.answerBox ? [JSON.stringify(searchData.answerBox)] : []),
-      ...(searchData.organic || []).map(res => `${res.title}: ${res.snippet}`)
+      ...(searchData.organic || []).map(res => `${res.title}: ${res.snippet}`),
+      ...(searchData.news || []).map(res => `${res.title}: ${res.snippet}`)
     ].join("\n\n");
 
-    if (!snippets) {
-      return res.status(200).json({ report: "### Google ничего не нашел по этому запросу." });
+    if (!snippets || snippets.length < 100) {
+      return res.status(200).json({ report: `### No significant English-language data found for the last 14 days.` });
     }
 
-    // 2. ОТПРАВКА В GROQ (или DeepSeek)
+    // 4. GENERATE ENGLISH REPORT
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_KEY}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Authorization': `Bearer ${GROQ_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         messages: [
           { 
             role: "system", 
-            content: `${current.system} Пиши на русском. Используй Markdown. 
-            Основывайся ТОЛЬКО на предоставленных данных поиска. 
-            Если видишь противоречия в ценах — укажи оба источника.` 
+            content: `${current.system} 
+            INSTRUCTIONS:
+            1. Language: Professional English.
+            2. Period: Last 14 days.
+            3. Mandatory: Detailed breakdown for Margarines, Specialty Fats (CBE, CBS), and Shortenings.
+            4. Formatting: Use Markdown headers and tables for prices.
+            5. Content: Analytical, data-driven, no fluff.` 
           },
-          { role: "user", content: `Данные из Google: \n${snippets}` }
+          { role: "user", content: `Search results (14-day window): \n${snippets}` }
         ],
         temperature: 0.1
       })
@@ -75,7 +80,6 @@ export default async function handler(req, res) {
     res.status(200).json({ report: aiData.choices[0].message.content });
 
   } catch (error) {
-    console.error("SERPER ERROR:", error);
-    res.status(200).json({ report: `### Ошибка: ${error.message}` });
+    res.status(200).json({ report: `### System Error: ${error.message}` });
   }
 }
