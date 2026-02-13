@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     const serperRes = await fetch('https://google.serper.dev/search', {
       method: 'POST',
       headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ q: current.query, num: 40, tbs: "qdr:w2" })
+      body: JSON.stringify({ q: current.query, num: 100, tbs: "qdr:w2" })
     });
 
     const searchData = await serperRes.json();
