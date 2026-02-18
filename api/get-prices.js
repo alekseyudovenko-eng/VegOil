@@ -23,29 +23,44 @@ export default async function handler(req, res) {
       body: JSON.stringify({ 
         q: fullQuery, 
         num: 40, 
-        tbs: "qdr:m" // Глубина поиска — 1 месяц
+        tbs: "qdr:m" 
       })
     });
     
     const searchData = await serperRes.json();
-    const snippets = (searchData.organic || []).map(o => `${o.title}: ${o.snippet}`).join("\n\n");
+    
+    // Объявляем snippets через let ОДИН раз
+    let snippets = (searchData.organic || [])
+      .map(o => `${o.title}: ${o.snippet}`)
+      .join("\n\n");
+    
+    // Проверка на пустоту (План Б)
+    if (!snippets || snippets.length < 20) {
+      snippets = `Notice: No direct news found for ${region} on topic ${topic} in the last 30 days. 
+      Please provide a strategic analysis and typical market conditions for this area. 
+      Include information about vegetable oil prices and trade logistics if possible.`;
+    }
 
     // 2. Генерация отчета (Groq)
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${GROQ_KEY}`, 'Content-Type': 'application/json' },
+      headers: { 
+        'Authorization': `Bearer ${GROQ_KEY}`, 
+        'Content-Type': 'application/json' 
+      },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         messages: [
           { 
             role: "system", 
             content: `You are a Market Intelligence Bot. 
-            Current focus: ${region}, Topic: ${topic}.
-            If there are no "breaking news" for today, your task is to summarize the TRENDS from the last 30 days.
-            - Look for price levels mentioned in any snippet.
-            - Look for logistics updates (Middle Corridor, Black Sea).
-            - If snippets are empty, provide a "Market Watch" summary: explain what factors currently influence ${topic} in ${region} (e.g. seasonal factors, currency rates).
-            NEVER return an empty report.`          },
+            Focus: ${region}, Topic: ${topic}.
+            If there are no "breaking news", summarize the TRENDS from the last 30 days.
+            - Mention price levels if found.
+            - Mention logistics (Middle Corridor, Black Sea).
+            - Format: Professional Markdown, use ## for headers and tables for data.
+            NEVER return an empty report.` 
+          },
           { role: "user", content: `Search results: \n\n${snippets}` }
         ],
         temperature: 0.1
@@ -54,10 +69,13 @@ export default async function handler(req, res) {
 
     const aiData = await groqRes.json();
     
-    if (!aiData.choices) throw new Error("Groq API error");
+    if (!aiData.choices || aiData.choices.length === 0) {
+      throw new Error("Groq API returned no results.");
+    }
     
     res.status(200).json({ report: aiData.choices[0].message.content });
   } catch (error) {
+    console.error("API Error:", error);
     res.status(500).json({ error: error.message });
   }
 }
