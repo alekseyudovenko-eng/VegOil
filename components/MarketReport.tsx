@@ -3,11 +3,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 interface MarketReportProps {
-  // Упрощаем: принимаем report как строку (Markdown)
   report: string | null; 
   isLoading: boolean;
   sources?: { title: string; url: string }[];
-  title?: string; // Добавим заголовок, чтобы он менялся (напр. "Russia: Prices")
+  title?: string;
 }
 
 const MarketReport: React.FC<MarketReportProps> = ({ report, isLoading, sources, title }) => {
@@ -31,17 +30,24 @@ const MarketReport: React.FC<MarketReportProps> = ({ report, isLoading, sources,
 
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden transition-all">
-      <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+      {/* Заголовок отчета */}
+      <div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
         <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg 
+            className="w-5 h-5 min-w-[20px] text-blue-600" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24" 
+            xmlns="http://www.w3.org/2000/svg"
+          >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1.01.707.293l5.414 5.414a1 1.01.293.707V19a2 2 0 01-2 2z" />
           </svg>
           {title || 'Аналитический отчет'}
         </h2>
       </div>
       
+      {/* Контент отчета */}
       <div className="p-6">
-        {/* Добавили стили для таблиц (prose-table) */}
         <div className="prose prose-slate max-w-none 
           prose-headings:text-slate-900 prose-headings:font-bold
           prose-p:text-slate-700 prose-p:leading-relaxed
@@ -55,6 +61,7 @@ const MarketReport: React.FC<MarketReportProps> = ({ report, isLoading, sources,
           </ReactMarkdown>
         </div>
 
+        {/* Секция источников */}
         {sources && sources.length > 0 && (
           <section className="mt-8 pt-6 border-t border-gray-100">
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Источники данных</h3>
