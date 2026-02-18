@@ -1,53 +1,80 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FCPO Futures Price Tracker</title>
+    <title>VEGOIL Terminal | Market Intelligence</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              'brand-green': '#26A69A',
-              'brand-red': '#EF5350',
-              'brand-blue': '#2962FF',
-              'light-primary': '#FFFFFF',
-              'light-secondary': '#F8F9FA',
-              'light-tertiary': '#E9ECEF',
-            }
-          }
-        }
-      }
-    </script>
+
     <style>
-  /* Стили для таблиц отчета */
-  table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-    margin: 20px 0 !important;
-    background-color: white !important;
-  }
-  th, td {
-    border: 1px solid #d1d5db !important;
-    padding: 12px !important;
-    text-align: left !important;
-  }
-  th {
-    background-color: #f3f4f6 !important;
-    font-weight: bold !important;
-  }
-  /* Чтобы текст не слипался */
-  .prose p {
-    margin-bottom: 1rem !important;
-    line-height: 1.6 !important;
-  }
-</style>
+      /* Шрифты и базовые фиксы */
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+      
+      body {
+        font-family: 'Inter', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      /* Кастомные стили для Markdown-таблиц (чтобы они не разваливались) */
+      .prose table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        margin: 1.5rem 0 !important;
+        font-size: 0.875rem !important;
+      }
+      
+      .prose th {
+        background-color: #f1f5f9 !important;
+        color: #0f172a !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.025em !important;
+        border: 1px solid #e2e8f0 !important;
+        padding: 0.75rem !important;
+      }
+
+      .prose td {
+        border: 1px solid #e2e8f0 !important;
+        padding: 0.75rem !important;
+        color: #334155 !important;
+      }
+
+      .prose tr:nth-child(even) {
+        background-color: #f8fafc !important;
+      }
+
+      /* Скроллбар в стиле терминала */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f1f1;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+
+      /* Убираем стандартные отступы для кнопок в навигации */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    </style>
   </head>
-  <body class="bg-light-secondary">
+  <body class="bg-[#F8F9FA]">
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
+    
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
