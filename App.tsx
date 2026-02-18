@@ -1,83 +1,76 @@
-import { useState, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+// App.tsx
+import React, { useState, useEffect } from 'react';
+import DashboardHeader from './components/DashboardHeader';
+import MarketReport from './components/MarketReport';
 
-const menuItems = [
-  { id: 'news', label: '1. Главная: Новости', icon: '📰' },
-  { id: 'prices', label: '2. Цены', icon: '📊' },
-  { id: 'policy', label: '3. Регуляторика', icon: '⚖️' },
-  { id: 'trade', label: '4. Торговые потоки', icon: '🚢' },
-  { id: 'summary', label: '5. Резюме', icon: '📝' },
+const REGIONS = ['Russia & CIS', 'Central Asia', 'Europe', 'Global'];
+const TOPICS = [
+  { id: 'news', label: 'Main News' },
+  { id: 'trade', label: 'Trade Flows' },
+  { id: 'policy', label: 'Regulatory Policy' },
+  { id: 'prices', label: 'Price Quotes' }
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('news');
+  const [region, setRegion] = useState(REGIONS[0]);
+  const [topic, setTopic] = useState(TOPICS[0].id);
   const [report, setReport] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const loadData = async (tab: string) => {
+  const loadData = async () => {
     setLoading(true);
-    setReport('');
     try {
-      const res = await fetch(`/api/get-prices?category=${tab}`);
+      const res = await fetch(`/api/get-prices?region=${encodeURIComponent(region)}&topic=${topic}`);
       const data = await res.json();
-      setReport(data.report);
+      setReport(data.report || data.error);
     } catch (e) {
-      setReport("Ошибка загрузки данных.");
-    } finally {
-      setLoading(false);
+      setReport("Connection error.");
     }
+    setLoading(false);
   };
 
-  useEffect(() => { loadData(activeTab); }, [activeTab]);
+  useEffect(() => { loadData(); }, [region, topic]);
 
   return (
-    <div className="flex min-h-screen bg-gray-50 text-slate-900 font-sans">
-      {/* SIDEBAR */}
-      <aside className="w-72 bg-slate-900 text-white p-6 shadow-xl shrink-0">
-        <div className="mb-10 px-2 text-2xl font-black text-emerald-400 tracking-tighter">AGRO-MONITOR</div>
-        <nav className="space-y-2">
-          {menuItems.map((item) => (
+    <div className="min-h-screen bg-slate-900 text-slate-100">
+      <DashboardHeader />
+      
+      {/* Горизонтальные вкладки Регионов */}
+      <div className="flex bg-slate-800 border-b border-slate-700">
+        {REGIONS.map(r => (
+          <button
+            key={r}
+            onClick={() => setRegion(r)}
+            className={`px-6 py-3 text-sm font-medium transition-colors ${region === r ? 'bg-blue-600' : 'hover:bg-slate-700'}`}
+          >
+            {r}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex">
+        {/* Боковые вкладки Тем */}
+        <div className="w-64 bg-slate-800 border-r border-slate-700 min-h-[calc(100vh-112px)]">
+          {TOPICS.map(t => (
             <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${
-                activeTab === item.id ? 'bg-emerald-600 shadow-lg shadow-emerald-900/20' : 'hover:bg-slate-800'
-              }`}
+              key={t.id}
+              onClick={() => setTopic(t.id)}
+              className={`w-full text-left px-6 py-4 text-sm transition-all ${topic === t.id ? 'bg-slate-700 border-l-4 border-blue-500' : 'hover:bg-slate-700/50'}`}
             >
-              <span>{item.icon}</span>
-              <span className="font-semibold text-sm">{item.label}</span>
+              {t.label}
             </button>
           ))}
-        </nav>
-      </aside>
-
-      {/* MAIN CONTENT */}
-      <main className="flex-1 p-8 overflow-y-auto">
-        <header className="mb-8 flex justify-between items-end">
-          <div>
-            <h2 className="text-3xl font-bold text-slate-800">{menuItems.find(i => i.id === activeTab)?.label}</h2>
-            <p className="text-slate-500">Данные на {new Date().toLocaleDateString()}</p>
-          </div>
-          <button onClick={() => loadData(activeTab)} className="bg-white border px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-gray-50">
-            {loading ? 'Загрузка...' : 'Обновить страницу'}
-          </button>
-        </header>
-
-        <div className="bg-white rounded-3xl p-10 shadow-sm border border-gray-200 min-h-[600px]">
-          {loading ? (
-            <div className="animate-pulse space-y-4">
-              <div className="h-8 bg-gray-100 w-1/3 rounded"></div>
-              <div className="h-4 bg-gray-50 w-full rounded"></div>
-              <div className="h-4 bg-gray-50 w-full rounded"></div>
-            </div>
-          ) : (
-            <article className="prose prose-slate max-w-none">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{report}</ReactMarkdown>
-            </article>
-          )}
         </div>
-      </main>
+
+        {/* Контентная область - используем твой компонент MarketReport */}
+        <main className="flex-1 p-8">
+          <MarketReport 
+            title={`${region}: ${TOPICS.find(t => t.id === topic)?.label}`} 
+            content={report} 
+            isLoading={loading} 
+          />
+        </main>
+      </div>
     </div>
   );
 }
