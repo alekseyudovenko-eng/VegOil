@@ -2,79 +2,20 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VEGOIL Terminal | Market Intelligence</title>
-
+    <title>VEGOIL Terminal</title>
     <script src="https://cdn.tailwindcss.com"></script>
-
     <style>
-      /* Шрифты и базовые фиксы */
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-      
-      body {
-        font-family: 'Inter', sans-serif;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-      }
-
-      /* Кастомные стили для Markdown-таблиц (чтобы они не разваливались) */
-      .prose table {
-        width: 100% !important;
-        border-collapse: collapse !important;
-        margin: 1.5rem 0 !important;
-        font-size: 0.875rem !important;
-      }
-      
-      .prose th {
-        background-color: #f1f5f9 !important;
-        color: #0f172a !important;
-        font-weight: 700 !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.025em !important;
-        border: 1px solid #e2e8f0 !important;
-        padding: 0.75rem !important;
-      }
-
-      .prose td {
-        border: 1px solid #e2e8f0 !important;
-        padding: 0.75rem !important;
-        color: #334155 !important;
-      }
-
-      .prose tr:nth-child(even) {
-        background-color: #f8fafc !important;
-      }
-
-      /* Скроллбар в стиле терминала */
-      ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #f1f1f1;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 10px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
-      }
-
-      /* Убираем стандартные отступы для кнопок в навигации */
-      .no-scrollbar::-webkit-scrollbar {
-        display: none;
-      }
-      .no-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-      }
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+      body { font-family: 'Inter', sans-serif; background-color: #F8F9FA; }
+      /* Стили для таблиц в отчетах */
+      .prose table { width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; margin: 1rem 0; }
+      .prose th, .prose td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
+      .prose th { background: #f8fafc; font-weight: bold; }
     </style>
   </head>
-  <body class="bg-[#F8F9FA]">
+  <body>
     <div id="root"></div>
-    
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="src/main.tsx"></script>
   </body>
 </html>
