@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     prices: `current market price quotes USD "sunflower oil" OR "palm oil" OR "CBE" OR "CBS"`
   };
 
-  const fullQuery = `${queryTemplates[topic] || queryTemplates.news} in ${region} February 2026`;
+  const fullQuery = `${queryTemplates[topic] || queryTemplates.news} ${region} -petroleum -fuel`;
 
   try {
     // 1. Поиск в Google (Serper)
@@ -39,13 +39,13 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `You are a Senior Commodities Analyst. Focus: ${region}, Topic: ${topic}. 
-            Your goal: provide a structured market update. 
-            1. Use "LATEST" for Feb 2026 facts. 
-            2. Summarize general environment if specific news is sparse. 
-            3. Use Markdown: ## for headers and TABLES for data. 
-            4. Focus on vegetable oils/fats only.` 
-          },
+            content: `You are a Market Intelligence Bot. 
+            Current focus: ${region}, Topic: ${topic}.
+            If there are no "breaking news" for today, your task is to summarize the TRENDS from the last 30 days.
+            - Look for price levels mentioned in any snippet.
+            - Look for logistics updates (Middle Corridor, Black Sea).
+            - If snippets are empty, provide a "Market Watch" summary: explain what factors currently influence ${topic} in ${region} (e.g. seasonal factors, currency rates).
+            NEVER return an empty report.`          },
           { role: "user", content: `Search results: \n\n${snippets}` }
         ],
         temperature: 0.1
