@@ -1,25 +1,31 @@
-export type Timeframe = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
+// types.ts
 
-export interface PriceData {
-  date: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume?: number;
+export interface Source {
+  title: string;
+  url: string;
 }
 
-// Расширяем для графика, если нужно сравнение
-export interface MergedPriceData extends PriceData {
-  comparisonClose?: number;
+export interface MarketReport {
+  // Мы делаем это объединением, чтобы поддерживать и простую строку, 
+  // и структурированный объект, если ты решишь усложнить бэкенд позже.
+  content: string;
+  timestamp?: string;
+  region?: string;
+  topic?: string;
 }
 
-export interface GroundingSource {
-  title?: string;
-  url?: string; // Заменили uri на url, так как Tavily присылает url
+// Добавим вспомогательный тип для состояния нашего терминала
+export type Region = 'Russia & CIS' | 'Central Asia' | 'Europe' | 'Global';
+
+export type TopicId = 'news' | 'trade' | 'policy' | 'prices';
+
+export interface Topic {
+  id: TopicId;
+  label: string;
 }
 
-// Наш новый упрощенный тип отчета
-export type MarketReport = string;
-
-export type ComparisonOption = 'NONE' | 'SBO' | 'PREVIOUS_PERIOD';
+export interface ApiResponse {
+  report: string; // То, что приходит из нашего get-prices.js
+  sources?: Source[];
+  error?: string;
+}
