@@ -1,0 +1,23 @@
+name: Daily Price Scraping
+
+on:
+  schedule:
+    # Каждый день в 9:00 UTC (12:00 МСК)
+    - cron: '0 9 * * *'
+  workflow_dispatch: # Ручной запуск
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Trigger Cbonds Scraping
+        run: |
+          curl -X GET "https://your-app.vercel.app/api/scrape-prices" \
+               -H "Authorization: Bearer ${{ secrets.API_SECRET }}"
+               
+      - name: Trigger Historical Update
+        run: |
+          curl -X GET "https://your-app.vercel.app/api/scrape-history?commodity=sunflower-oil"
+          curl -X GET "https://your-app.vercel.app/api/scrape-history?commodity=palm-oil"
+          curl -X GET "https://your-app.vercel.app/api/scrape-history?commodity=soybean-oil"
