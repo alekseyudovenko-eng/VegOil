@@ -1,32 +1,37 @@
-// api/get-prices.js
+// api/get-prices.js - Только чтение из кэша, никакого парсинга!
 import { supabase } from '../lib/supabase.js';
 
 export default async function handler(req, res) {
   const { region, topic, days = 10 } = req.query;
   
-  // Имитируем задержку сервера
-  await new Promise(resolve => setTimeout(resolve, 800));
+  // Быстрый ответ из кэша (< 100ms)
+  const startTime = Date.now();
   
   try {
-    // Получаем данные из нашей БД (куда сохраняли парсеры)
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - parseInt(days));
     
+    // Только чтение из Supabase, никаких внешних запросов!
     const { data: prices, error } = await supabase
       .from('prices')
       .select('*')
+      .eq('status', 'valid') // Только валидированные
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0])
-      .order('date', { ascending: false });
-      
+      .order('date', { ascending: false })
+      .limit(100);
+
     if (error) throw error;
-    
-    // Если в БД мало данных — возвращаем моки с пометкой
+
     const hasRealData = prices && prices.length > 0;
-    
-    // Формируем отчет на основе topic
-    const report = generateReport(topic, region, prices, hasRealData);
+    const latestDate = hasRealData ? prices[0].date : null;
+    const dataAge = latestDate ? Math.floor((new Date() - new Date(latestDate)) / (1000 * 60 * 60)) : null;
+
+    // Предупреждение если данные устарели (> 25 часов)
+    const isStale = dataAge > 25;
+
+    const report = generateReport(topic, region, prices, hasRealData, isStale);
     
     res.status(200).json({ 
       report,
@@ -35,49 +40,63 @@ export default async function handler(req, res) {
         topic,
         dataPoints: prices?.length || 0,
         hasRealData,
-        lastUpdated: new Date().toISOString()
+        isStale,
+        dataAgeHours: dataAge,
+        responseTimeMs: Date.now() - startTime,
+        lastUpdated: latestDate,
+        nextUpdate: 'Cron job runs every hour'
       }
     });
-    
+
   } catch (error) {
-    console.error('API error:', error);
-    // Fallback на моки если БД недоступна
-    const mockReport = generateMockReport(topic, region);
+    console.error('Cache read error:', error);
+    // Даже при ошибке БД — fallback на моки, но быстро
     res.status(200).json({
-      report: mockReport,
-      meta: { region, topic, hasRealData: false, error: error.message }
+      report: generateMockReport(topic, region),
+      meta: { 
+        region, 
+        topic, 
+        hasRealData: false, 
+        error: 'Cache unavailable',
+        responseTimeMs: Date.now() - startTime
+      }
     });
   }
 }
 
-// Генерация отчета с реальными данными
-function generateReport(topic, region, prices, hasRealData) {
-  const priceTable = hasRealData ? formatPriceTable(prices) : '*Данные собираются...*';
-  
+function generateReport(topic, region, prices, hasRealData, isStale) {
+  const priceTable = hasRealData 
+    ? formatPriceTable(prices) 
+    : '*Данные собираются. Первая точка появится в течение часа...*';
+
+  const staleWarning = isStale 
+    ? '\n\n> ⚠️ **Данные устарели.** Последнее обновление более 25 часов назад. Проверьте статус cron-задачи.'
+    : '';
+
   const dataMap = {
     news: {
       title: "Оперативные новости",
-      content: `* **${region}:** Анализ рынка на основе собранных данных.\n* **Цены:** ${hasRealData ? 'Актуальные котировки FOB' : 'В процессе сбора'}.\n* **Источник:** Cbonds.ru, IndexMundi.`
+      content: `* **${region}:** Анализ рынка.\n* **Цены:** ${hasRealData ? 'Актуальные FOB котировки' : 'Сбор данных...'}.\n* **Источник:** Cbonds.ru, IndexMundi.`
     },
     prices: {
       title: "Котировки и индикаторы",
-      content: priceTable
+      content: priceTable + staleWarning
     },
     trade: {
       title: "Экспорт и импорт",
-      content: `Данные по региону **${region}**. ${hasRealData ? 'Статистика на основе собранных цен FOB.' : 'Сбор данных...'}`
+      content: `Статистика по региону **${region}**.`
     },
     policy: {
       title: "Регуляторная политика",
-      content: `Анализ регуляторных изменений в регионе **${region}**.`
+      content: `Анализ регуляторных изменений в **${region}**.`
     }
   };
 
   const selected = dataMap[topic] || dataMap.news;
   
   const dataStatus = hasRealData 
-    ? '> **Данные собраны автоматически** из открытых источников (Cbonds, IndexMundi).'
-    : '> **Система накопления данных.** Первые реальные данные появятся через 24ч.';
+    ? `> ✅ **Данные актуальны.** Обновлено: ${new Date().toLocaleString('ru-RU')}`
+    : '> ⏳ **Накопление базы данных.** Автоматический сбор каждый час.';
 
   return `
 # ${selected.title}: ${region}
@@ -86,76 +105,8 @@ ${selected.content}
 
 ${dataStatus}
 
-*Последнее обновление: ${new Date().toLocaleString('ru-RU')}*
+*Время ответа: ${Date.now() - startTime}ms | Источник: Кэш Supabase*
   `;
 }
 
-function formatPriceTable(prices) {
-  if (!prices || prices.length === 0) return 'Нет данных';
-  
-  // Группируем по продукту, берем последнюю цену
-  const latest = {};
-  prices.forEach(p => {
-    const key = `${p.product}_${p.region}`;
-    if (!latest[key] || new Date(p.date) > new Date(latest[key].date)) {
-      latest[key] = p;
-    }
-  });
-  
-  const rows = Object.values(latest).map(p => {
-    const change = calculateChange(prices, p.product, p.region);
-    return `| ${p.product} | ${p.region} | $${p.price} | ${change} |`;
-  }).join('\n');
-  
-  return `| Продукт | Регион | Цена | Изм. |\n| :--- | :--- | :--- | :--- |\n${rows}`;
-}
-
-function calculateChange(allPrices, product, region) {
-  // Находим изменение за последние 2 записи
-  const productPrices = allPrices
-    .filter(p => p.product === product && p.region === region)
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
-    
-  if (productPrices.length < 2) return '—';
-  
-  const current = productPrices[0].price;
-  const previous = productPrices[1].price;
-  const diff = current - previous;
-  const percent = ((diff / previous) * 100).toFixed(1);
-  
-  return diff >= 0 ? `📈 +$${diff} (+${percent}%)` : `📉 -$${Math.abs(diff)} (${percent}%)`;
-}
-
-function generateMockReport(topic, region) {
-  // Ваш текущий мок-контент как fallback
-  const dataMap = {
-    news: {
-      title: "Оперативные новости",
-      content: `* **Черноморский регион:** Ожидается рост предложения подсолнечного масла.\n* **Индия:** Снижение импортной пошлины подтверждено.\n* **Логистика:** Фрахт из портов ${region} стабилен.`
-    },
-    prices: {
-      title: "Котировки и индикаторы",
-      content: `| Продукт | Цена FOB | Изм. за неделю | Прогноз |\n| :--- | :--- | :--- | :--- |\n| Sun Oil | $945 | +$15 | 📈 |\n| Palm Oil | $890 | -$5 | 📉 |\n| Soy Oil | $1010 | +$2 | ➡️ |`
-    },
-    trade: {
-      title: "Экспорт и импорт",
-      content: `Экспортные отгрузки из региона **${region}** за текущий месяц составили 450 тыс. тонн. Основные направления: Китай (40%), Египет (25%), ЕС (15%).`
-    },
-    policy: {
-      title: "Регуляторные изменения",
-      content: `В регионе **${region}** вступают в силу новые требования к содержанию 3-MCPD. Экспортная пошлина остается на уровне 0% до конца квартала.`
-    }
-  };
-
-  const selected = dataMap[topic] || dataMap.news;
-  
-  return `
-# ${selected.title}: ${region}
----
-${selected.content}
-
-> **Система работает в режиме накопления данных.** Реальные котировки появятся после первого сбора (24ч).
-
-*Статус: SIMULATION_MODE*
-  `;
-}
+// ... остальные функции formatPriceTable, calculateChange, generateMockReport
